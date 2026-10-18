@@ -1,6 +1,6 @@
 # apps/garmin-ciq
 
-Connect IQ data field, written in Monkey C. Not a pnpm workspace member. No device project in this step.
+Connect IQ data field, written in Monkey C. Not an npm workspace member. The root `workspaces` array does not include this folder. No device project in this step.
 
 ## What goes here
 

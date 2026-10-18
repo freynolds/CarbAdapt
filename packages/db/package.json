@@ -6,6 +6,7 @@
   "scripts": {
     "generate": "node ./scripts/run-prisma.mjs generate",
     "validate": "node ./scripts/run-prisma.mjs validate",
+    "migrate": "node ./scripts/run-prisma.mjs migrate dev",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

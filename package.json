@@ -3,25 +3,31 @@
   "version": "0.0.0",
   "private": true,
   "description": "CarbAdapt monorepo: endurance fueling and gut training.",
-  "packageManager": "pnpm@10.33.4",
+  "packageManager": "npm@10.9.9",
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "pnpm --parallel --filter @carbadapt/web --filter @carbadapt/api dev",
-    "dev:web": "pnpm --filter @carbadapt/web dev",
-    "dev:api": "pnpm --filter @carbadapt/api dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev -w @carbadapt/web",
+    "dev:api": "npm run dev -w @carbadapt/api",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f mysql",
-    "db:generate": "pnpm --filter @carbadapt/db generate",
-    "db:validate": "pnpm --filter @carbadapt/db validate",
-    "postinstall": "pnpm db:generate",
+    "db:generate": "npm run generate -w @carbadapt/db",
+    "db:validate": "npm run validate -w @carbadapt/db",
+    "db:migrate": "npm run migrate -w @carbadapt/db",
+    "postinstall": "npm run db:generate",
     "lint": "eslint .",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm --filter @carbadapt/api test"
+    "test": "npm run test -w @carbadapt/api"
   },
   "prettier": "./packages/config/prettier.json",
   "devDependencies": {

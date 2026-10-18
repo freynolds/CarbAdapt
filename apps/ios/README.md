@@ -1,6 +1,6 @@
 # apps/ios
 
-SwiftUI app. Not a pnpm workspace member. No Xcode project in this step.
+SwiftUI app. Not an npm workspace member. The root `workspaces` array does not include this folder. No Xcode project in this step.
 
 ## What goes here
 

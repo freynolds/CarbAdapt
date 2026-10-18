@@ -69,8 +69,8 @@ Stages stay inside `races`. Home and to-dos are not modules: they will compose o
 Set `APP_ENV` in the root `.env` (`mock`, `staging`, or `production`) and restart the API. The dev script loads that file. Unset means `mock`.
 
 ```bash
-APP_ENV=mock pnpm dev:api
-pnpm --filter @carbadapt/api test
+APP_ENV=mock npm run dev:api
+npm test
 ```
 
 `staging` and `production` throw `not implemented` while composing services, so the listener never starts. `mock` is the only environment that serves traffic today.

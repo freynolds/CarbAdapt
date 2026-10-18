@@ -2,7 +2,7 @@
 
 CarbAdapt is an app for endurance fueling and gut training. This repository is the MVP: a Next.js web app and a separate Node API first, with iOS and Garmin Connect IQ later. Everything here runs on localhost. There is no deploy in this phase.
 
-This step is the scaffold only. It shows where each kind of code will live. There is no product screen, no database model, no seed, and no fueling logic yet.
+The scaffold shows where each kind of code will live. The database schema and its first migration are in `packages/db`. There is no product screen, no seed, and no fueling logic yet.
 
 ## Architecture
 
@@ -29,7 +29,7 @@ apps/
   garmin-ciq/     Placeholder. Connect IQ data field after M5. Not a workspace package yet.
 packages/
   config/         Base tsconfig and Prettier. ESLint flat config is the repo-root file.
-  db/             Prisma schema (datasource + generator only) and the client export.
+  db/             Prisma schema, the first migration, and the client export. No seed yet.
   fixtures/       Demo data for the seed. Empty until M1.
   engine/         Pure calc functions. Empty until M3.
   contracts/      OpenAPI and generated clients. Empty until the mock API settles.
@@ -51,26 +51,26 @@ Each app and package README says what belongs there, what must stay out, and whi
 
 To add a module, copy `src/modules/products/`, then register its factory and router in `src/compose.ts`. Mount paths, and which plan areas share a prefix, are listed in `apps/api/README.md`.
 
-Switch environment with `APP_ENV` in the root `.env`: `mock` (the default), `staging`, or `production`. Restart the API after changing it. `pnpm --filter @carbadapt/api test` checks the mock products route and that the other two environments throw.
+Switch environment with `APP_ENV` in the root `.env`: `mock` (the default), `staging`, or `production`. Restart the API after changing it. `npm test` checks the mock products route and that the other two environments throw.
 
 ## Local setup
 
-Requires Node.js 22 or newer, pnpm 10 (the `packageManager` field pins 10.33.4; Corepack will use it), and Docker.
+Requires Node.js 22 or newer, npm 10 (the `packageManager` field pins 10.9.9), and Docker.
 
 ```bash
 cp .env.example .env
-pnpm install
-pnpm db:up
-pnpm db:validate
-pnpm dev:web
-pnpm dev:api
+npm install
+npm run db:up
+npm run db:migrate
+npm run dev:web
+npm run dev:api
 ```
 
-`pnpm install` also generates the Prisma client (`pnpm db:generate`). The schema has no models, so the client exposes no tables.
+`npm install` also generates the Prisma client (`npm run db:generate`). `npm run db:validate` checks the schema without migrating. `npm run db:migrate` applies migrations with `prisma migrate dev`. The first migration creates every model. It does not insert rows.
 
 Open the web placeholder at [http://127.0.0.1:3000](http://127.0.0.1:3000). The API liveness check is [http://127.0.0.1:4000/health](http://127.0.0.1:4000/health) and returns `{"status":"ok"}`.
 
-`pnpm dev` runs web and api together. `pnpm db:down` stops MySQL. `pnpm lint`, `pnpm typecheck`, and `pnpm format:check` cover the workspace.
+`npm run dev` runs web and api together. `npm run db:down` stops MySQL. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run format:check` cover the workspace.
 
 `.env.example` matches the Compose defaults (`carbadapt` / `carbadapt` on database `carbadapt`). Those passwords are for this local database only. Compose reads `.env` for variable substitution. Prisma commands load the same file. Next.js does not: the root `.env` holds `DATABASE_URL`, which must not be bundled into the browser. The placeholder uses `http://127.0.0.1:4000` unless `apps/web/.env.local` sets `NEXT_PUBLIC_API_URL`.
 
@@ -80,8 +80,9 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 
 ## Choices to confirm
 
-- **pnpm, without Turborepo.** The build plan names pnpm workspaces and Turborepo. pnpm is already the package manager in that plan, and it is stricter about which package can import what. Turborepo is left out until there is a task graph worth caching. `pnpm dev` runs the two processes with pnpm's own parallel filters.
-- **Extra folders.** `packages/fixtures`, `packages/config`, and `docs/` are in the agreed layout and were not in the shortest step-1 list. Fixtures exist so demo data does not land in the API. Config holds the shared tsconfig and Prettier file. `apps/worker`, `apps/ios`, and `apps/garmin-ciq` have a README only, so pnpm does not try to install them.
+- **npm workspaces, without Turborepo.** The build plan names pnpm workspaces and Turborepo. This repo uses npm. The `workspaces` array is `apps/web`, `apps/api`, and `packages/*`. `apps/worker`, `apps/ios`, and `apps/garmin-ciq` stay out even if a `package.json` is added there later. Turborepo is left out until there is a task graph worth caching. `npm run dev` starts web and api together.
+- **Extra folders.** `packages/fixtures`, `packages/config`, and `docs/` are in the agreed layout and were not in the shortest step-1 list. Fixtures exist so demo data does not land in the API. Config holds the shared tsconfig and Prettier file.
+- **Schema deltas from the plan.** `packages/db/README.md` lists the seven differences kept from PR #2 (`User.mode` optional, `SweatTest.movedFrom`, `PostWorkoutLog.ladderEligible`, `Workout.stageId`, `FoodItem.sodiumMgPer100g`, `Race.startAt`, and explicit `onDelete: SetNull` on three optional relations). The client stays on the default `@prisma/client` path. There is still no seed.
 - **Prisma 6.19, not 7 and not the 5.22 cited in the plan.** The schema still uses `url = env("DATABASE_URL")` inside the datasource block, which is the shape the plan's schema uses. Prisma 7 moves that URL out of the schema file. Prisma 8 is a release candidate. Stay on 6 until a schema PR chooses otherwise.
 - **TypeScript 5.9.** TypeScript 6 and 7 are published. `typescript-eslint` 8.71 does not accept TypeScript 7 (`<6.1`), so the repo is pinned to 5.9.
 - **Next.js 16, React 19, Express 5, Zod 4.** Current stable lines. Zod 4 is the validation library named in the plan.

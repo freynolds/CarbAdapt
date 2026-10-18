@@ -17,6 +17,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - carbadapt_mysql:/var/lib/mysql
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/01-grants.sql
     healthcheck:
       test:
         [

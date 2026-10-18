@@ -15,7 +15,7 @@ This step shows a placeholder at `/` so the process can be started. It is not a 
 
 `next.config.ts` stays UI-only. Do not add route handlers that stand in for `apps/api`.
 
-Next writes `next-env.d.ts` on `next dev` and on `next typegen`. That file is gitignored. In Next 16 the two commands point it at different generated type paths, so committing it would leave a permanent diff. `pnpm typecheck` runs `next typegen` before `tsc`.
+Next writes `next-env.d.ts` on `next dev` and on `next typegen`. That file is gitignored. In Next 16 the two commands point it at different generated type paths, so committing it would leave a permanent diff. `npm run typecheck` runs `next typegen` before `tsc`.
 
 ## What must NOT go here
 

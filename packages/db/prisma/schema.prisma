@@ -1,7 +1,8 @@
-// CarbAdapt database.
-// Step 1 is the datasource and the generator only.
-// Models, migrations, and the seed are later milestones. Do not put fueling
-// rules or fixture rows in this file.
+// CarbAdapt – Prisma schema (MVP, web + server phase)
+// Models come from PR #2, checked on Prisma 6.19. Differences from the build
+// plan (§3) and from that PR are listed in packages/db/README.md.
+// The client is generated to the default location and re-exported from src/index.ts.
+// Units: metric only, stored in base units (kg, g, ml, mg, min, km, m). Timestamps UTC.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,4 +11,753 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+// ───────────── Enums ─────────────
+
+enum Mode {
+  FUEL_MY_WORKOUTS
+  GUT_TRAINING
+}
+
+enum Locale {
+  EN_US
+  ES
+  PT
+}
+
+enum ThemePref {
+  SYSTEM
+  LIGHT
+  DARK
+}
+
+enum AuthProvider {
+  EMAIL_MAGIC_LINK
+  STRAVA
+  TRAININGPEAKS
+  GARMIN // only after Garmin Connect Developer Program approval
+  APPLE // Sign in with Apple, iOS phase (#34)
+}
+
+enum DataProvider {
+  TRAININGPEAKS
+  GARMIN
+  STRAVA
+}
+
+enum ConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  REVOKED // inferred: token revoked by provider
+}
+
+enum Sport {
+  CYCLING
+  RUNNING
+  TRAIL_RUNNING
+  OTHER // inferred
+}
+
+enum WorkoutType {
+  BASE
+  THRESHOLD
+  VO2MAX
+  ANAEROBIC
+  RECOVERY
+}
+
+enum WorkoutKind {
+  STANDARD
+  SWEAT_TEST // special workout type (#87, #141)
+}
+
+enum WorkoutSource {
+  MANUAL
+  TRAININGPEAKS
+  GARMIN
+  STRAVA
+}
+
+enum WorkoutStatus {
+  PLANNED
+  COMPLETED
+  SKIPPED // inferred (Flows §14: skipped/changed workout)
+}
+
+enum Symptom {
+  NONE
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum ContainerType {
+  BOTTLE
+  SOFT_FLASK
+  BLADDER
+}
+
+enum ContainerContent {
+  WATER
+  ISOTONIC
+  GEL_CONCENTRATE
+}
+
+enum ProductType {
+  DRINK_MIX
+  GEL
+  SOLID
+}
+
+enum ProductSource {
+  SCAN
+  MANUAL
+}
+
+enum FodmapLevel {
+  LOW
+  HIGH
+}
+
+enum SweatTestStatus {
+  SCHEDULED
+  IN_PROGRESS
+  AWAITING_DATA
+  COMPLETED
+  RESCHEDULED // #134 / #154
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum LadderStepStatus {
+  DONE
+  CURRENT
+  UPCOMING
+}
+
+enum AdaptationOutcome {
+  ADVANCE
+  HOLD
+  STEP_BACK
+}
+
+enum GutTargetKind {
+  RACE
+  DATE
+}
+
+enum CarbLoadingChoice {
+  NONE
+  TWO_DAY // protocol B (#124)
+  ONE_DAY // protocol C (#124)
+}
+
+enum LoadingDay {
+  D_MINUS_2
+  D_MINUS_1
+}
+
+enum RehearsalStatus {
+  SUGGESTED
+  DISMISSED // #137
+  DONE // inferred
+}
+
+enum StageGapCase {
+  UNDER_4H
+  H4_TO_12H
+  OVERNIGHT
+  REST_DAY
+}
+
+enum ArrivalSource {
+  PLATFORM_WEBHOOK
+  FALLBACK_TIMER // start + estimated duration × 1.5 (#152)
+}
+
+enum AchievementType {
+  GH_INCREASE // only type for now (#143)
+}
+
+enum TodoType {
+  LAST_SESSION_FEEDBACK
+  SIP_CALIBRATION
+  SIP_VALIDATION
+  SWEAT_TEST
+  COMPLETE_PROFILE
+  ADD_BOTTLE
+  ADD_RACE
+  CONNECT_CALENDAR
+  PRE_RACE_STRATEGY
+  DATA_CONFLICT
+  ESTIMATE_GH
+  LOADING_REHEARSAL
+}
+
+enum TodoTier {
+  HIGHEST
+  CALIBRATION
+  LOWER
+}
+
+enum TodoStatus {
+  OPEN
+  DONE
+  DISMISSED
+}
+
+enum NotificationType {
+  DAILY_BRIEFING
+  POST_WORKOUT
+  POST_WORKOUT_REMINDER // "remind once later" (Flows §10)
+  SWEAT_TEST_NIGHT_BEFORE
+  SWEAT_TEST_DAY
+  SWEAT_TEST_END
+  SWEAT_TEST_INCOMPLETE
+  SWEAT_TEST_QUARTERLY
+  CARB_LOADING_D2
+  CARB_LOADING_D1
+  RACE_BREAKFAST
+  LOADING_REHEARSAL
+  STAGE_COMPLETE
+}
+
+enum NotificationChannel {
+  APNS // iOS phase
+  IN_APP // web phase, pending decision
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum SubscriptionStatus {
+  BETA_ALL_ACCESS // MVP: no paywall (#65)
+}
+
+// ───────────── Identity & account ─────────────
+
+model User {
+  id                String     @id @default(cuid())
+  email             String?    @unique
+  emailVerifiedAt   DateTime?
+  name              String?
+  locale            Locale     @default(EN_US)
+  theme             ThemePref  @default(SYSTEM)
+  timezone          String // IANA, e.g. America/Argentina/Buenos_Aires
+  /// Null until the athlete picks a mode (Dani, §5). The plan defaulted this; seed needs "not chosen".
+  mode              Mode?
+  briefingTimeLocal String? // "HH:mm" (#67) – inferred format
+  briefingDayBefore Boolean    @default(true) // evening before vs same day (#67)
+  createdAt         DateTime   @default(now())
+  deletedAt         DateTime? // in-app account deletion (#51)
+
+  identities    AuthIdentity[]
+  sessions      Session[]
+  physical      PhysicalData?
+  conflicts     PhysicalDataConflict[]
+  connections   ProviderConnection[]
+  containers    Container[]
+  products      Product[]
+  workouts      Workout[]
+  activities    Activity[]
+  sweatTests    SweatTest[]
+  gutPlans      GutTrainingPlan[]
+  races         Race[]
+  achievements  Achievement[]
+  todos         TodoItem[]
+  notifications Notification[]
+  subscription  Subscription?
+  onboarding    OnboardingAnswers?
+}
+
+model AuthIdentity {
+  id             String       @id @default(cuid())
+  userId         String
+  provider       AuthProvider
+  providerUserId String
+  email          String?
+  linkedAt       DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+}
+
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OnboardingAnswers {
+  id        String   @id @default(cuid())
+  userId    String?  @unique
+  anonId    String   @unique // answers exist before the account (Flows §3)
+  answers   Json // per-step questionnaire answers
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PhysicalData {
+  userId          String    @id
+  weightKg        Decimal?  @db.Decimal(5, 2)
+  ftpW            Int?
+  sweatRateLPerH  Decimal?  @db.Decimal(4, 2)
+  sweatRateSource String? // "estimate" | "sweat_test" (Flows §3) – inferred as string
+  ghTolerance     Int? // tolerated g/h
+  maxHr           Int?
+  hrZones         Json?
+  age             Int?
+  sex             String? // inferred: free enum TBD
+  heightCm        Int?
+  fieldSources    Json? // per field: MANUAL or provider (#104) – inferred shape
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PhysicalDataConflict {
+  // #105: To do asks which value to keep
+  id           String       @id @default(cuid())
+  userId       String
+  field        String // ftp | weight | zones
+  manualValue  Json
+  syncedValue  Json
+  provider     DataProvider
+  resolvedWith String? // "manual" | "synced"
+  resolvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProviderConnection {
+  id                    String           @id @default(cuid())
+  userId                String
+  provider              DataProvider
+  externalUserId        String
+  accessTokenEnc        String           @db.Text // encrypted at rest
+  refreshTokenEnc       String?          @db.Text
+  expiresAt             DateTime?
+  scopes                String?
+  status                ConnectionStatus @default(CONNECTED)
+  webhookSubscriptionId String?
+  lastSyncAt            DateTime? // stored, not shown in UI (#106)
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}
+
+model WebhookEvent {
+  // raw inbound events, idempotency + replay
+  id          String       @id @default(cuid())
+  provider    DataProvider
+  externalId  String
+  eventType   String
+  payload     Json
+  receivedAt  DateTime     @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, externalId, eventType])
+}
+
+model Subscription {
+  // placeholder, post-MVP (#65)
+  userId String             @id
+  status SubscriptionStatus @default(BETA_ALL_ACCESS)
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ───────────── Gear & products ─────────────
+
+model Container {
+  id           String           @id @default(cuid())
+  userId       String
+  type         ContainerType
+  name         String // e.g. "Red bottle"
+  colorHex     String?
+  capacityMl   Int
+  usualContent ContainerContent @default(WATER)
+  createdAt    DateTime         @default(now())
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calibrations ContainerCalibration[]
+}
+
+model ContainerCalibration {
+  id              String    @id @default(cuid())
+  containerId     String
+  weightsG        Json // [start, after 1, after 2, after 3 sips]
+  mlPerSip        Decimal?  @db.Decimal(5, 2)
+  gPerSqueeze     Decimal?  @db.Decimal(5, 2) // soft flasks
+  createdAt       DateTime  @default(now())
+  validationsLeft Int       @default(4) // in-field validation, first 3–4 workouts – inferred counter
+  container       Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  userId     String
+  type       ProductType
+  name       String
+  brand      String?
+  servingG   Decimal?      @db.Decimal(6, 2)
+  scoopG     Decimal?      @db.Decimal(6, 2) // scoop size from label (#37)
+  carbsG     Decimal       @db.Decimal(6, 2) // per serving
+  sodiumMg   Int?
+  caffeineMg Int?
+  label      Json? // full label data (#75)
+  favorite   Boolean       @default(false)
+  source     ProductSource @default(MANUAL)
+  createdAt  DateTime      @default(now())
+  deletedAt  DateTime?
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FoodItem {
+  // static curated USDA FoodData Central list (#138–#139), seeded
+  id              Int          @id @default(autoincrement())
+  fdcId          Int          @unique
+  name            String
+  category        String? // inferred
+  carbsPer100g    Decimal      @db.Decimal(6, 2)
+  proteinPer100g  Decimal?     @db.Decimal(6, 2) // inferred: needed for between-stage protein
+  fatPer100g      Decimal?     @db.Decimal(6, 2) // inferred: low-fat guidance
+  fiberPer100g    Decimal?     @db.Decimal(6, 2) // inferred: low-fiber guidance
+  /// USDA nutrient 307 (mg per 100 g). Inferred: recovery sodium remainder from broth / salty food.
+  sodiumMgPer100g Int?
+  portionG        Decimal?     @db.Decimal(6, 2) // inferred: default portion
+  portionLabel    String? // inferred
+  fodmap          FodmapLevel? // #127. Not a USDA field; see fixtures for which foods are tagged.
+}
+
+// ───────────── Workouts, plans, intake ─────────────
+
+model Workout {
+  // planned (synced or manual)
+  id              String        @id @default(cuid())
+  userId          String
+  source          WorkoutSource
+  externalId      String?
+  sport           Sport
+  kind            WorkoutKind   @default(STANDARD)
+  workoutType     WorkoutType? // null = Unstructured (#48)
+  name            String
+  plannedStart    DateTime? // manual workouts have no start time (#93)
+  plannedDate     DateTime      @db.Date
+  durationMin     Int?
+  structure       Json? // blocks/zones from the platform
+  status          WorkoutStatus @default(PLANNED)
+  sourceUpdatedAt DateTime?
+  /// Links a stage effort to the workout that carries its fueling plan. Inferred; the plan had no FK.
+  stageId         String?       @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage           Stage?        @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  fuelingPlans    FuelingPlan[]
+  activity        Activity?
+  feedback        PostWorkoutLog?
+  sweatTest       SweatTest?
+
+  @@unique([source, externalId])
+  @@index([userId, plannedDate])
+}
+
+model Activity {
+  // completed activity from a provider
+  id          String       @id @default(cuid())
+  userId      String
+  provider    DataProvider
+  externalId  String
+  workoutId   String?      @unique // match to planned workout
+  startAt     DateTime
+  durationMin Int
+  summary     Json? // avg power/HR/pace, kJ
+  dedupeGroup String? // same ride on several platforms
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout     Workout?     @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalId])
+}
+
+model FuelingPlan {
+  id            String   @id @default(cuid())
+  workoutId     String
+  engineVersion String
+  targetGPerH   Int?
+  totalCarbsG   Int
+  totalFluidMl  Int
+  totalSodiumMg Int
+  schedule      Json // intake markers (water/isotonic/gel/solid) over time
+  carryList     Json // per container + gels + solids (scoops, grams)
+  userAdjusted  Boolean  @default(false) // more/less stepper (#55 area)
+  isCurrent     Boolean  @default(true)
+  weather       Json? // forecast snapshot, user-editable
+  createdAt     DateTime @default(now())
+  workout       Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+}
+
+model PostWorkoutLog {
+  // questionnaire; also Add intake / Last-session feedback
+  id                String    @id @default(cuid())
+  workoutId         String    @unique
+  intakeCarbsG      Int?
+  intakeItems       Json? // products picked from the library
+  intakeTiming      Json?
+  fluidMl           Int?
+  symptomUpper      Symptom?
+  symptomLower      Symptom?
+  symptomSystemic   Symptom?
+  feeling           String?
+  containerWeighIns Json? // sip validation, first 3–4 workouts
+  followedPrompts   Boolean?
+  sipProposal       Json? // proposed ml/sip + accepted/rejected
+  sweatPostWeightKg Decimal?  @db.Decimal(5, 2) // sweat test step
+  countsForPlan     Boolean   @default(true) // false for late entries from earlier periods (#92)
+  /// False when the session is logged but too short to move the ladder (#115, #120).
+  ladderEligible    Boolean   @default(true)
+  submittedAt       DateTime  @default(now())
+  workout           Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+}
+
+// ───────────── Sweat test ─────────────
+
+model SweatTest {
+  id             String          @id @default(cuid())
+  userId         String
+  workoutId      String?         @unique
+  status         SweatTestStatus @default(SCHEDULED)
+  scheduledFor   DateTime        @db.Date
+  /// Calendar date this test was moved off (a loading day, #134). Null when it was not moved.
+  movedFrom      DateTime?       @db.Date
+  preWeightKg    Decimal?        @db.Decimal(5, 2)
+  postWeightKg   Decimal?        @db.Decimal(5, 2)
+  fluidMl        Int?
+  urineMl        Int?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  temperatureC   Decimal?        @db.Decimal(4, 1)
+  humidityPct    Int?
+  sweatRateLPerH Decimal?        @db.Decimal(4, 2)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout        Workout?        @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+}
+
+// ───────────── Gut training ─────────────
+
+model GutTrainingPlan {
+  id            String        @id @default(cuid())
+  userId        String
+  targetKind    GutTargetKind
+  raceId        String?
+  targetDate    DateTime      @db.Date
+  startGh       Int
+  goalGh        Int // max 200, warn > 120 (#110)
+  defaultGh     Int? // simulated best case (#114)
+  tooFast       Boolean       @default(false) // #113 saved anyway
+  status        PlanStatus    @default(ACTIVE)
+  engineVersion String
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  race          Race?         @relation(fields: [raceId], references: [id], onDelete: SetNull)
+  steps         LadderStep[]
+  decisions     AdaptationDecision[]
+}
+
+model LadderStep {
+  id         String           @id @default(cuid())
+  planId     String
+  index      Int
+  gh         Int
+  approxDate DateTime?        @db.Date
+  status     LadderStepStatus @default(UPCOMING)
+  plan       GutTrainingPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, index])
+}
+
+model AdaptationDecision {
+  id            String            @id @default(cuid())
+  planId        String
+  outcome       AdaptationOutcome
+  fromGh        Int
+  toGh          Int
+  inputLogIds   Json // PostWorkoutLog ids used
+  reason        String?
+  engineVersion String
+  createdAt     DateTime          @default(now())
+  plan          GutTrainingPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model Achievement {
+  id           String          @id @default(cuid())
+  userId       String
+  type         AchievementType @default(GH_INCREASE)
+  valueGh      Int
+  workoutId    String?
+  achievedAt   DateTime        @default(now())
+  celebratedAt DateTime? // celebration shown at end of questionnaire
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ───────────── Races, stages, loading, recovery ─────────────
+
+model Race {
+  id                   String            @id @default(cuid())
+  userId               String
+  name                 String
+  date                 DateTime          @db.Date
+  /// Local start instant. Inferred: the add-race form has no start time, but breakfast guidance needs one (early start, #129).
+  startAt              DateTime?
+  estimatedDurationMin Int
+  type                 String // race type – values TBD
+  distanceKm           Decimal?          @db.Decimal(7, 2)
+  elevationGainM       Int?
+  carbLoading          CarbLoadingChoice @default(NONE)
+  isMultiStage         Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stages               Stage[]
+  aidStations          AidStation[]
+  strategies           RaceStrategy[]
+  loadingDays          CarbLoadingDay[]
+  rehearsal            LoadingRehearsal?
+  gutPlans             GutTrainingPlan[]
+}
+
+model Stage {
+  id                   String             @id @default(cuid())
+  raceId               String
+  index                Int
+  date                 DateTime           @db.Date
+  startAt              DateTime
+  estimatedDurationMin Int
+  type                 String
+  distanceKm           Decimal?           @db.Decimal(7, 2)
+  elevationGainM       Int?
+  activityId           String? // matched completed activity – inferred
+  arrivalAt            DateTime? // defined by the stage push (#152)
+  arrivalSource        ArrivalSource?
+  race                 Race               @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  aidStations          AidStation[]
+  recovery             StageRecoveryPlan?
+  workout              Workout?
+
+  @@unique([raceId, index])
+}
+
+model AidStation {
+  id          String   @id @default(cuid())
+  raceId      String?
+  stageId     String?
+  kmMark      Decimal  @db.Decimal(7, 2)
+  hasWater    Boolean  @default(false)
+  hasIsotonic Boolean  @default(false)
+  hasGels     Boolean  @default(false)
+  race        Race?    @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  stage       Stage?   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+}
+
+model RaceStrategy {
+  // pre-race strategy plan options (#100–#101)
+  id           String  @id @default(cuid())
+  raceId       String
+  refillPoints Json // user-entered
+  description  String  @db.Text
+  carryList    Json
+  chosen       Boolean @default(false) // user picks, never automatic
+  race         Race    @relation(fields: [raceId], references: [id], onDelete: Cascade)
+}
+
+model CarbLoadingDay {
+  id           String     @id @default(cuid())
+  raceId       String
+  day          LoadingDay
+  date         DateTime   @db.Date
+  gPerKg       Decimal    @db.Decimal(4, 1)
+  targetCarbsG Int
+  meals        Json // per meal + portion, example foods (FoodItem ids)
+  isRehearsal  Boolean    @default(false)
+  race         Race       @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@unique([raceId, day, isRehearsal])
+}
+
+model LoadingRehearsal {
+  // #130, #131, #137
+  id                String          @id @default(cuid())
+  raceId            String          @unique
+  date              DateTime        @db.Date // day before a long ride, ~1 week pre-race
+  longRideWorkoutId String?
+  status            RehearsalStatus @default(SUGGESTED)
+  dismissedAt       DateTime?
+  race              Race            @relation(fields: [raceId], references: [id], onDelete: Cascade)
+}
+
+model StageRecoveryPlan {
+  // #145–#153, #156–#159
+  id               String       @id @default(cuid())
+  stageId          String       @unique // the stage just finished
+  gapCase          StageGapCase
+  gapMin           Int?
+  carbsTargetG     Int
+  proteinTargetG   Int?
+  fluidTargetMl    Int?
+  sodiumTargetMg   Int?
+  sensitiveStomach Boolean      @default(false)
+  meals            Json // grams per meal and portion, example meals
+  engineVersion    String
+  stage            Stage        @relation(fields: [stageId], references: [id], onDelete: Cascade)
+}
+
+// ───────────── To do & notifications ─────────────
+
+model TodoItem {
+  id        String     @id @default(cuid())
+  userId    String
+  type      TodoType
+  tier      TodoTier
+  refType   String? // e.g. "Workout", "Race", "Container", "PhysicalDataConflict"
+  refId     String?
+  payload   Json?
+  status    TodoStatus @default(OPEN)
+  createdAt DateTime   @default(now())
+  closedAt  DateTime?
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  type        NotificationType
+  channel     NotificationChannel
+  scheduledAt DateTime
+  sentAt      DateTime?
+  readAt      DateTime? // in-app inbox, if chosen
+  copyKey     String // i18n key for the verbatim copy
+  deepLink    String?
+  refType     String?
+  refId       String?
+  dedupeKey   String             @unique // e.g. STAGE_COMPLETE:<stageId> – one per stage (#152)
+  status      NotificationStatus @default(SCHEDULED)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
 }

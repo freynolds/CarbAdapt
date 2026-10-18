@@ -1,6 +1,6 @@
 # apps/worker
 
-Long-running job process. Not a pnpm workspace member yet: there is no `package.json`, and `pnpm install` ignores this folder.
+Long-running job process. Not an npm workspace member. The root `workspaces` array lists `apps/web`, `apps/api`, and `packages/*`, so this folder stays out even after a `package.json` is added.
 
 ## What goes here
 

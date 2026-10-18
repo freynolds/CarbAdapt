@@ -8,11 +8,11 @@ This step is the scaffold only. It shows where each kind of code will live. Ther
 
 Two processes and MySQL:
 
-| Process    | Role                                                                                         | Port             |
-| ---------- | -------------------------------------------------------------------------------------------- | ---------------- |
-| `apps/web` | Next.js UI. Renders screens and calls the API.                                               | `127.0.0.1:3000` |
-| `apps/api` | Express API. The only HTTP server iOS and Garmin will share. Zod validates input and output. | `127.0.0.1:4000` |
-| MySQL 8.4  | Application data, via Prisma in `packages/db`. Docker Compose, bound to localhost.           | `127.0.0.1:3306` |
+| Process    | Role                                                                               | Port             |
+| ---------- | ---------------------------------------------------------------------------------- | ---------------- |
+| `apps/web` | Next.js UI. Renders screens and calls the API.                                     | `127.0.0.1:3000` |
+| `apps/api` | Express API, one module per domain. Zod validates config and JSON.                 | `127.0.0.1:4000` |
+| MySQL 8.4  | Application data, via Prisma in `packages/db`. Docker Compose, bound to localhost. | `127.0.0.1:3306` |
 
 The API is separate from Next.js so the same server can later hold sessions, webhooks, and the device API without living inside the web deploy. A worker process is added in M4 for queues and timers. It is not running now.
 
@@ -23,7 +23,7 @@ Mock data, when it arrives, is authored in `packages/fixtures` and loaded into M
 ```
 apps/
   web/            Next.js App Router. Placeholder page only.
-  api/            Express. GET /health only.
+  api/            Express modules. GET /health and mock GET /products.
   worker/         Placeholder. Job runner in M4. Not a workspace package yet.
   ios/            Placeholder. SwiftUI in M5. Not a workspace package yet.
   garmin-ciq/     Placeholder. Connect IQ data field after M5. Not a workspace package yet.
@@ -42,6 +42,16 @@ docs/             ADRs and runbooks. Empty.
 ```
 
 Each app and package README says what belongs there, what must stay out, and which milestone fills it in.
+
+## API modules
+
+`apps/api/src/modules/` has one folder per domain (auth, profile, workouts, fueling, gear, products, foods, races, carb loading, gut training, sweat tests, questionnaire, achievements, notifications, connections). Each folder has a router, a service interface, Zod schemas, and a factory. The factory picks `impl/mock`, `impl/staging`, or `impl/production` from `APP_ENV`.
+
+`src/compose.ts` is the composition root: it builds every service from its factory and mounts every router. `GET /health` stays outside the modules. `GET /products` is the one wired route; in mock mode it returns hard-coded rows. Staging and production throw `not implemented` while the services are built, so only `mock` finishes booting.
+
+To add a module, copy `src/modules/products/`, then register its factory and router in `src/compose.ts`. Mount paths, and which plan areas share a prefix, are listed in `apps/api/README.md`.
+
+Switch environment with `APP_ENV` in the root `.env`: `mock` (the default), `staging`, or `production`. Restart the API after changing it. `pnpm --filter @carbadapt/api test` checks the mock products route and that the other two environments throw.
 
 ## Local setup
 

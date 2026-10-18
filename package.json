@@ -20,7 +20,8 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "pnpm --filter @carbadapt/api test"
   },
   "prettier": "./packages/config/prettier.json",
   "devDependencies": {

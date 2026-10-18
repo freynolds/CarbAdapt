@@ -1,9 +1,9 @@
 import { createApp } from "./app.js";
-import { readApiEnv } from "./schemas/env.js";
+import { readConfig } from "./config/env.js";
 
-const env = readApiEnv();
-const app = createApp();
+const config = readConfig();
+const app = createApp(config);
 
-app.listen(env.API_PORT, env.API_HOST, () => {
-  console.log(`api listening on http://${env.API_HOST}:${env.API_PORT}`);
+app.listen(config.API_PORT, config.API_HOST, () => {
+  console.log(`api listening on http://${config.API_HOST}:${config.API_PORT} (${config.APP_ENV})`);
 });

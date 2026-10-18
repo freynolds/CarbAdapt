@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { HttpErrorCode, httpErrorBody } from "@carbadapt/contracts";
 import { getJson, testId, withApp, withAthlete } from "../../test/harness.js";
 
 test("POST /dev/login-as sets a session cookie and GET /dev/athletes lists ids", async () => {
@@ -23,9 +24,11 @@ test("POST /dev/login-as sets a session cookie and GET /dev/athletes lists ids",
       body: JSON.stringify({ athleteId: "usr_missing" }),
     });
     assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), httpErrorBody(HttpErrorCode.AthleteNotFound));
 
     const unauthenticated = await getJson(`${baseUrl}/me`);
     assert.equal(unauthenticated.status, 401);
+    assert.deepEqual(unauthenticated.body, httpErrorBody(HttpErrorCode.Unauthorized));
   });
 });
 

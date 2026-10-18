@@ -47,7 +47,7 @@ Each app and package README says what belongs there, what must stay out, and whi
 
 `apps/api/src/modules/` has one folder per domain (auth, profile, workouts, fueling, gear, products, foods, races, carb loading, gut training, sweat tests, questionnaire, achievements, notifications, connections). Each folder has a router, a service interface, Zod schemas, and a factory. The factory picks `impl/mock`, `impl/staging`, or `impl/production` from `APP_ENV`.
 
-`src/compose.ts` is the composition root: it builds every service from its factory and mounts every router. `GET /health` stays outside the modules. In mock mode the domain routes read MySQL for the signed-in athlete. `POST /dev/login-as`, `GET /dev/athletes`, and `POST /dev/reset` are mounted only when `APP_ENV=mock`. Staging and production throw `not implemented` while the services are built, so only `mock` finishes booting.
+`src/compose.ts` is the composition root: it builds every service from its factory and mounts every router. `GET /health` stays outside the modules. In mock mode the domain routes read MySQL for the signed-in athlete. `POST /dev/login-as`, `GET /dev/athletes`, and `POST /dev/reset` are mounted only when `APP_ENV=mock`. Staging and production throw `HttpErrorCode.NotImplemented` while the services are built, so only `mock` finishes booting.
 
 To add a module, copy `src/modules/products/`, then register its factory and router in `src/compose.ts`. Mount paths, and which plan areas share a prefix, are listed in `apps/api/README.md`.
 

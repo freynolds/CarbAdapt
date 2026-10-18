@@ -1,8 +1,9 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
-import { HttpError } from "../http/errors.js";
+import { HttpErrorCode } from "@carbadapt/contracts";
+import { HttpError, sendHttpError } from "../http/errors.js";
 
 export const notFoundHandler: RequestHandler = (_req, res) => {
-  res.status(404).json({ error: "not_found", message: "Not found." });
+  sendHttpError(res, new HttpError(HttpErrorCode.NotFound));
 };
 
 function isJsonParseError(err: unknown): boolean {
@@ -11,20 +12,17 @@ function isJsonParseError(err: unknown): boolean {
   );
 }
 
-/** Last middleware. Known HTTP errors keep their status. Everything else is a JSON 500. */
+function asHttpError(err: unknown): HttpError {
+  if (err instanceof HttpError) return err;
+  if (isJsonParseError(err)) return new HttpError(HttpErrorCode.InvalidJson);
+  return new HttpError(HttpErrorCode.InternalError);
+}
+
+/** Last middleware. Every failure is one HttpError body. */
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  if (err instanceof HttpError) {
-    res.status(err.status).json({
-      error: err.code,
-      message: err.message,
-      ...(err.details === undefined ? {} : { details: err.details }),
-    });
-    return;
+  const http = asHttpError(err);
+  if (!(err instanceof HttpError) && http.code === HttpErrorCode.InternalError) {
+    console.error(err);
   }
-  if (isJsonParseError(err)) {
-    res.status(400).json({ error: "invalid_request", message: "Request body is not valid JSON." });
-    return;
-  }
-  console.error(err);
-  res.status(500).json({ error: "internal_error" });
+  sendHttpError(res, http);
 };

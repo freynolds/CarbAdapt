@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  BreakfastNote,
+  FIXTURE_ENGINE_VERSION,
+  HttpErrorCode,
+  httpErrorBody,
+} from "@carbadapt/contracts";
 import { testId, withAthlete } from "../../test/harness.js";
 
 test("GET loading day and breakfast read the race for the signed-in athlete", async () => {
@@ -41,6 +47,8 @@ test("GET loading day and breakfast read the race for the signed-in athlete", as
     const breakfast = await fetch(`${baseUrl}/races/${raceId}/breakfast`, { headers: { cookie } });
     assert.equal(breakfast.status, 200);
     const breakfastBody = (await breakfast.json()) as {
+      engineVersion: string;
+      note: string;
       earlyStart: boolean;
       gPerKg: number;
       carbsG: number;
@@ -48,6 +56,8 @@ test("GET loading day and breakfast read the race for the signed-in athlete", as
       sodiumMg: number;
       derived: boolean;
     };
+    assert.equal(breakfastBody.engineVersion, FIXTURE_ENGINE_VERSION);
+    assert.equal(breakfastBody.note, BreakfastNote.Early);
     assert.equal(breakfastBody.earlyStart, true);
     assert.equal(breakfastBody.gPerKg, 1.5);
     assert.equal(breakfastBody.carbsG, 96);
@@ -57,5 +67,6 @@ test("GET loading day and breakfast read the race for the signed-in athlete", as
 
     const missing = await fetch(`${baseUrl}/races/${raceId}/loading/d-1`, { headers: { cookie } });
     assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), httpErrorBody(HttpErrorCode.LoadingDayNotFound));
   });
 });

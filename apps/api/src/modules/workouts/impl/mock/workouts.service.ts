@@ -1,4 +1,4 @@
-import { HttpError } from "../../../../http/errors.js";
+import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
 import { parseDay } from "../../../../http/calendar.js";
 import { presentWorkout, workoutInclude } from "../../../../http/present.js";
 import type { ModuleDeps } from "../../../deps.js";
@@ -28,7 +28,7 @@ export function createMockWorkoutsService(deps: ModuleDeps): WorkoutsService {
         where: { id, userId },
         include: workoutInclude,
       });
-      if (!row) throw new HttpError(404, "not_found", "Workout not found.");
+      if (!row) throw new HttpError(HttpErrorCode.WorkoutNotFound);
       return { workout: presentWorkout(row) };
     },
   };

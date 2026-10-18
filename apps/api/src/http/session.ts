@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@carbadapt/db";
 import type { Request, RequestHandler } from "express";
-import { HttpError } from "./errors.js";
+import { HttpError, HttpErrorCode } from "./errors.js";
 
 export const SESSION_COOKIE = "carbadapt_session";
 const SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
@@ -39,7 +39,7 @@ export function readToken(req: Request): string | undefined {
 export function userId(req: Request): string {
   const id = (req as AuthedRequest).userId;
   if (!id) {
-    throw new HttpError(401, "unauthorized", "Sign in as a demo athlete first.");
+    throw new HttpError(HttpErrorCode.Unauthorized);
   }
   return id;
 }
@@ -48,7 +48,7 @@ export function requireUser(db: PrismaClient): RequestHandler {
   return (req, _res, next) => {
     const token = readToken(req);
     if (!token) {
-      next(new HttpError(401, "unauthorized", "Sign in as a demo athlete first."));
+      next(new HttpError(HttpErrorCode.Unauthorized));
       return;
     }
     db.session
@@ -58,7 +58,7 @@ export function requireUser(db: PrismaClient): RequestHandler {
       })
       .then((session) => {
         if (!session || session.expiresAt.getTime() < Date.now() || session.user.deletedAt) {
-          next(new HttpError(401, "unauthorized", "Session expired."));
+          next(new HttpError(HttpErrorCode.SessionExpired));
           return;
         }
         (req as AuthedRequest).userId = session.userId;
@@ -71,7 +71,7 @@ export function requireUser(db: PrismaClient): RequestHandler {
 export function routeParam(value: string | string[] | undefined, name: string): string {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) {
-    throw new HttpError(400, "invalid_request", `Missing ${name}.`);
+    throw new HttpError(HttpErrorCode.MissingParameter, { name });
   }
   return raw;
 }

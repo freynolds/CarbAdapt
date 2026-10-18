@@ -1,5 +1,5 @@
 import { insertSeed } from "@carbadapt/db";
-import { HttpError } from "../../../../http/errors.js";
+import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
 import { hashToken, newToken } from "../../../../http/session.js";
 import { iso } from "../../../../http/values.js";
 import { presentUser } from "../../../../http/present.js";
@@ -13,7 +13,7 @@ export function createMockDevService(deps: ModuleDeps): DevService {
   return {
     async loginAs(athleteId) {
       const user = await db.user.findUnique({ where: { id: athleteId } });
-      if (!user) throw new HttpError(404, "not_found", "Athlete not found.");
+      if (!user) throw new HttpError(HttpErrorCode.AthleteNotFound);
       if (user.deletedAt) {
         await db.user.update({ where: { id: user.id }, data: { deletedAt: null } });
         user.deletedAt = null;

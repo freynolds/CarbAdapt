@@ -1,4 +1,4 @@
-import { HttpError } from "../../../../http/errors.js";
+import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
 import { containerInclude, presentContainer } from "../../../../http/present.js";
 import type { ModuleDeps } from "../../../deps.js";
 import type { GearService } from "../../gear.service.js";
@@ -19,7 +19,7 @@ export function createMockGearService(deps: ModuleDeps): GearService {
         where: { id, userId },
         include: containerInclude,
       });
-      if (!row) throw new HttpError(404, "not_found", "Container not found.");
+      if (!row) throw new HttpError(HttpErrorCode.ContainerNotFound);
       return { container: presentContainer(row) };
     },
   };

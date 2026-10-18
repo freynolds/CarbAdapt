@@ -29,7 +29,7 @@ src/modules/products/
   impl/production/products.service.ts
 ```
 
-Mock services read MySQL through Prisma for the signed-in athlete. Response bodies are checked with the Zod schemas in `packages/contracts` before they are sent. Staging and production call `unimplemented()`, which throws `not implemented`, so the process does not finish booting in those environments.
+Mock services read MySQL through Prisma for the signed-in athlete. Response bodies are checked with the Zod schemas in `packages/contracts` before they are sent. Failures throw `HttpError` with an `HttpErrorCode`. Staging and production call `unimplemented()`, which throws `HttpErrorCode.NotImplemented`, so the process does not finish booting in those environments.
 
 `GET /health` returns `{ "status": "ok" }`. It does not check MySQL. `auth` (magic link) and `notifications` still have no routes.
 
@@ -115,7 +115,7 @@ APP_ENV=mock npm run dev:api
 npm test
 ```
 
-`staging` and `production` throw `not implemented` while composing services, so the listener never starts. `mock` is the only environment that serves traffic today. `POST /dev/reset` replaces application rows. `npm run db:reset` drops the database.
+`staging` and `production` throw `HttpErrorCode.NotImplemented` while composing services, so the listener never starts. `mock` is the only environment that serves traffic today. `POST /dev/reset` replaces application rows. `npm run db:reset` drops the database.
 
 ## What must NOT go here
 

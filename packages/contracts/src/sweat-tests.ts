@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { calendarDateSchema, isoDateTimeSchema, sweatTestStatusSchema } from "./common.js";
+import { SWEAT_RATE_FORMULA } from "./messages.js";
 
 export const sweatTestSchema = z
   .object({
@@ -17,7 +18,7 @@ export const sweatTestSchema = z
     temperatureC: z.number().nullable(),
     humidityPct: z.number().int().nullable(),
     sweatRateLPerH: z.number().nullable(),
-    formula: z.string(),
+    formula: z.literal(SWEAT_RATE_FORMULA),
   })
   .strict();
 

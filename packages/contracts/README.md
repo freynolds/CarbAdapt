@@ -5,6 +5,7 @@ The API contract: the document clients generate from, not the Express implementa
 ## What goes here
 
 - Zod schemas for the mock API's response bodies. `apps/api` imports them and parses every JSON response.
+- `HttpErrorCode`, the status and message maps, and `httpErrorBody` in `src/http-errors.ts`. Response strings the API writes live in `src/messages.ts`. Web imports the same codes and text.
 - OpenAPI 3.1 for the REST API, generated from those schemas once the shapes settle.
 - A generated TypeScript client for `apps/web` (and, in M5, the source for the Swift client).
 - The device protocol JSON schema.

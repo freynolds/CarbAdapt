@@ -41,7 +41,7 @@ import { createWorkoutsService } from "./modules/workouts/workouts.factory.js";
 
 /**
  * Builds every module from its factory and mounts every router.
- * Staging and production factories throw "not implemented", so only mock finishes booting.
+ * Staging and production factories throw HttpErrorCode.NotImplemented, so only mock finishes booting.
  * Dev routes are mounted only for mock, even after the other environments exist.
  *
  * Fueling and questionnaire share /workouts with workouts. Carb loading shares /races with races.

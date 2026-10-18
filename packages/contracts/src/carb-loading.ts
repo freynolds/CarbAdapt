@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { calendarDateSchema, jsonSchema, loadingDaySchema } from "./common.js";
+import { BreakfastNote, FIXTURE_ENGINE_VERSION } from "./messages.js";
 
 export const loadingDayResponseSchema = z
   .object({
@@ -18,7 +19,7 @@ export const loadingDayResponseSchema = z
 
 export const breakfastResponseSchema = z
   .object({
-    engineVersion: z.literal("fixture"),
+    engineVersion: z.literal(FIXTURE_ENGINE_VERSION),
     derived: z.literal(true),
     earlyStart: z.boolean(),
     gPerKg: z.number(),
@@ -28,7 +29,7 @@ export const breakfastResponseSchema = z
     waterMl: z.literal(0),
     sodiumMg: z.number().int(),
     drinkSodiumMgPerL: z.number().int(),
-    note: z.string(),
+    note: z.enum(BreakfastNote),
   })
   .strict();
 

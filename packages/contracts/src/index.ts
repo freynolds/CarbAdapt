@@ -2,6 +2,8 @@
  * Public response shapes for the mock API.
  * Route modules validate with these schemas. OpenAPI can be generated from them later.
  */
+export * from "./http-errors.js";
+export * from "./messages.js";
 export * from "./common.js";
 export * from "./profile.js";
 export * from "./connections.js";

@@ -1,12 +1,13 @@
 import type { Prisma } from "@prisma/client";
-import type {
-  FuelingPlan,
-  Physical,
-  StageRecovery,
-  SweatTest,
-  Todo,
-  User,
-  Workout,
+import {
+  SWEAT_RATE_FORMULA,
+  type FuelingPlan,
+  type Physical,
+  type StageRecovery,
+  type SweatTest,
+  type Todo,
+  type User,
+  type Workout,
 } from "@carbadapt/contracts";
 import { day, iso, toNumber } from "./values.js";
 
@@ -42,8 +43,6 @@ type AidRow = {
   stageId: string | null;
 };
 type RecoveryRow = Prisma.StageRecoveryPlanGetPayload<object>;
-
-export const SWEAT_FORMULA = "pre − post + fluid − urine, divided by hours";
 
 export const workoutInclude = {
   fuelingPlans: true,
@@ -215,7 +214,7 @@ export function presentSweat(row: SweatRow): SweatTest {
     temperatureC: toNumber(row.temperatureC),
     humidityPct: row.humidityPct,
     sweatRateLPerH: toNumber(row.sweatRateLPerH),
-    formula: SWEAT_FORMULA,
+    formula: SWEAT_RATE_FORMULA,
   };
 }
 

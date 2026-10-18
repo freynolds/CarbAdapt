@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ConnectionStatus, DataProvider } from "./messages.js";
 
 /** Calendar date stored as UTC midnight, rendered YYYY-MM-DD. */
 export const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -18,8 +19,8 @@ export const workoutKindSchema = z.enum(["STANDARD", "SWEAT_TEST"]);
 export const workoutSourceSchema = z.enum(["MANUAL", "TRAININGPEAKS", "GARMIN", "STRAVA"]);
 export const workoutStatusSchema = z.enum(["PLANNED", "COMPLETED", "SKIPPED"]);
 export const symptomSchema = z.enum(["NONE", "MILD", "MODERATE", "SEVERE"]);
-export const dataProviderSchema = z.enum(["TRAININGPEAKS", "GARMIN", "STRAVA"]);
-export const connectionStatusSchema = z.enum(["CONNECTED", "DISCONNECTED", "REVOKED"]);
+export const dataProviderSchema = z.enum(DataProvider);
+export const connectionStatusSchema = z.enum(ConnectionStatus);
 export const containerTypeSchema = z.enum(["BOTTLE", "SOFT_FLASK", "BLADDER"]);
 export const containerContentSchema = z.enum(["WATER", "ISOTONIC", "GEL_CONCENTRATE"]);
 export const productTypeSchema = z.enum(["DRINK_MIX", "GEL", "SOLID"]);

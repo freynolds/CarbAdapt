@@ -1,4 +1,6 @@
-/** Mode, g/h goal, ladder, and the starting-point estimate. No operations yet. */
+import type { GutPlanResponse } from "@carbadapt/contracts";
+
+/** Active gut plan and its ladder. The newest plan is used when none is active. */
 export interface GutTrainingService {
-  readonly module: "gut-training";
+  getPlan(userId: string): Promise<GutPlanResponse>;
 }

@@ -1,4 +1,6 @@
-/** Fueling plans attached to a workout. Calculation stays in packages/engine. No operations yet. */
+import type { FuelingPlanResponse } from "@carbadapt/contracts";
+
+/** The current fueling plan for one workout. Math stays in packages/engine. */
 export interface FuelingService {
-  readonly module: "fueling";
+  getFuelingPlan(userId: string, workoutId: string): Promise<FuelingPlanResponse>;
 }

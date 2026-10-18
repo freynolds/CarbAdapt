@@ -1,4 +1,7 @@
-/** Sweat-test protocol, weights, and the result. No operations yet. */
+import type { SweatTestList, SweatTestResponse } from "@carbadapt/contracts";
+
+/** Sweat-test protocol rows. The rate formula is not recomputed on read. */
 export interface SweatTestsService {
-  readonly module: "sweat-tests";
+  listSweatTests(userId: string): Promise<SweatTestList>;
+  getSweatTest(userId: string, id: string): Promise<SweatTestResponse>;
 }

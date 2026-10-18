@@ -1,0 +1,34 @@
+:root {
+  --color-night: #101a2b;
+  --color-glucose: #c6f135;
+  --color-ember: #ff6a3d;
+  --color-tarmac: #2b3a55;
+  --color-bone: #f4f1ea;
+  --color-card: #ffffff;
+  --font-display: "Bricolage Grotesque", "Avenir Next", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "DM Sans", "Avenir Next", sans-serif;
+  --bg: var(--color-bone);
+  --fg: var(--color-night);
+  --muted: var(--color-tarmac);
+  --card: var(--color-card);
+  --accent: var(--color-glucose);
+  --danger: var(--color-ember);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: var(--color-night);
+  --fg: var(--color-bone);
+  --muted: #c5d0e0;
+  --card: var(--color-tarmac);
+  --accent: var(--color-glucose);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+}

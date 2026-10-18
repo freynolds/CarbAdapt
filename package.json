@@ -1,0 +1,34 @@
+{
+  "name": "carbadapt",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "CarbAdapt MVP — web app and API, mock-data phase (M0–M1).",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "postinstall": "pnpm --filter @carbadapt/db generate",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:validate": "pnpm --filter @carbadapt/db validate",
+    "db:migrate": "pnpm --filter @carbadapt/db migrate",
+    "db:seed": "pnpm --filter @carbadapt/db seed",
+    "db:reset": "pnpm --filter @carbadapt/db reset",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "eslint": "^9.37.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}

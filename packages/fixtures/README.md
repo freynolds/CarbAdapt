@@ -6,7 +6,7 @@ Demo athletes and scenarios, as TypeScript, loaded into MySQL by the Prisma seed
 
 Typed fixture modules. Dates are offsets from the day the seed runs, so a later calendar stays current. Computed outputs (fueling plans, ladders, loading days, recovery plans) are hand-made and marked `engineVersion: "fixture"` until `packages/engine` exists.
 
-This step has Ana only, plus the shared USDA food sample. Bruno, Carla, Eli, and Dani stay out until a later step.
+Ana, Bruno, and Carla are seeded. Eli and Dani stay out until a later step.
 
 | File              | Role                                                                          |
 | ----------------- | ----------------------------------------------------------------------------- |
@@ -14,7 +14,7 @@ This step has Ana only, plus the shared USDA food sample. Bruno, Carla, Eli, and
 | `src/domain.ts`   | Hand-made arithmetic used to fill computed rows. Not the M3 engine.           |
 | `src/foods.ts`    | Static USDA FoodData Central sample. FDC ids are kept.                        |
 | `src/bag.ts`      | The in-memory seed graph and the builders for fueling, loading, and recovery. |
-| `src/athletes.ts` | Ana. `seedAthletes` is the only entry.                                        |
+| `src/athletes.ts` | Ana, Bruno, and Carla. `seedAthletes` is the only entry.                      |
 | `src/index.ts`    | `buildSeed(now)` returns the graph.                                           |
 
 ## What must NOT go here
@@ -29,5 +29,6 @@ This step has Ana only, plus the shared USDA food sample. Bruno, Carla, Eli, and
 | When      | What lands                                            |
 | --------- | ----------------------------------------------------- |
 | Step 1    | Empty package, so demo data would not land in the API |
-| This step | Fixture format, Ana, and the USDA sample              |
-| Later     | The other demo athletes                               |
+| Step 3    | Fixture format, Ana, and the USDA sample              |
+| This step | Bruno and Carla                                       |
+| Later     | Eli and Dani                                          |

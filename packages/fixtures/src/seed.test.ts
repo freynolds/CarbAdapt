@@ -62,13 +62,13 @@ describe("fixture clock and domain rules", () => {
 describe("Ana", () => {
   const seed = buildSeed(NOW);
 
-  it("is the only demo athlete, in gut training", () => {
+  it("is a gut-training road cyclist", () => {
     assert.deepEqual(
       seed.users.map((row) => row.name),
-      ["Ana"],
+      ["Ana", "Bruno", "Carla"],
     );
-    assert.equal(seed.users[0]?.mode, "GUT_TRAINING");
-    assert.equal(seed.users[0]?.id, "usr_ana");
+    const ana = seed.users.find((row) => row.id === "usr_ana");
+    assert.equal(ana?.mode, "GUT_TRAINING");
   });
 
   it("builds the in-progress ladder, celebration, and duplicate ride", () => {
@@ -107,7 +107,11 @@ describe("Ana", () => {
     assert.equal(short?.ladderEligible, false);
     const late = seed.logs.find((row) => row.workoutId === "wrk_ana_late");
     assert.equal(late?.countsForPlan, false);
-    assert.equal(seed.connections.filter((row) => row.status === "CONNECTED").length, 2);
+    assert.equal(
+      seed.connections.filter((row) => row.userId === "usr_ana" && row.status === "CONNECTED")
+        .length,
+      2,
+    );
   });
 
   it("stores the USDA sample and tags computed rows as fixtures", () => {
@@ -126,5 +130,101 @@ describe("Ana", () => {
     assert.equal(fixtureFuelingGh(180), 90);
     assert.equal(perKgCarbs(10, WEIGHT.ana), 640);
     assert.equal(rateCarbs(1, WEIGHT.ana, 60), 64);
+    assert.equal(
+      seed.recoveries.every((row) => row.engineVersion === "fixture"),
+      true,
+    );
+  });
+});
+
+describe("Bruno", () => {
+  const seed = buildSeed(NOW);
+
+  it("has a completed ladder and the trail overnight bands", () => {
+    const bruno = seed.users.find((row) => row.id === "usr_bruno");
+    assert.equal(bruno?.mode, "GUT_TRAINING");
+    const plan = seed.gutPlans.find((row) => row.id === "gut_bruno");
+    assert.equal(plan?.status, "COMPLETED");
+    assert.equal(plan?.startGh, 80);
+    assert.equal(plan?.goalGh, 100);
+    assert.equal(plan?.engineVersion, "fixture");
+    const steps = seed.steps.filter((row) => row.planId === "gut_bruno");
+    assert.equal(
+      steps.every((row) => row.status === "DONE"),
+      true,
+    );
+    assert.deepEqual(
+      steps.map((row) => row.gh).sort((a, b) => Number(a) - Number(b)),
+      [80, 90, 100],
+    );
+    const date90 = seed.steps.find((row) => row.id === "stp_bruno_1")?.approxDate;
+    const date100 = seed.steps.find((row) => row.id === "stp_bruno_2")?.approxDate;
+    assert.ok(date90 instanceof Date && date100 instanceof Date);
+    assert.ok((date100.getTime() - date90.getTime()) / 86_400_000 >= 7);
+    assert.equal(
+      seed.recoveries.find((row) => row.id === "rec_bruno_1")?.carbsTargetG,
+      perKgCarbs(6, WEIGHT.bruno),
+    );
+    assert.equal(
+      seed.recoveries.find((row) => row.id === "rec_bruno_2")?.carbsTargetG,
+      perKgCarbs(7, WEIGHT.bruno),
+    );
+    assert.equal(
+      seed.logs.find((row) => row.workoutId === "wrk_bruno_short")?.ladderEligible,
+      false,
+    );
+    assert.equal(seed.logs.find((row) => row.workoutId === "wrk_bruno_80a")?.ladderEligible, true);
+    assert.equal(seed.strategies.filter((row) => row.raceId === "race_bruno").length, 1);
+    assert.equal(seed.sweatTests.find((row) => row.id === "swt_bruno")?.status, "COMPLETED");
+    assert.equal(seed.stages.filter((row) => row.raceId === "race_bruno").length, 4);
+  });
+});
+
+describe("Carla", () => {
+  const seed = buildSeed(NOW);
+
+  it("covers seven stages and every gap case", () => {
+    const carla = seed.users.find((row) => row.id === "usr_carla");
+    assert.equal(carla?.mode, "FUEL_MY_WORKOUTS");
+    const stages = seed.stages.filter((row) => row.raceId === "race_carla");
+    assert.equal(stages.length, 7);
+    const recoveries = seed.recoveries.filter((row) => String(row.stageId).startsWith("stg_carla"));
+    assert.equal(recoveries.length, 6);
+    assert.equal(
+      seed.recoveries.find((row) => row.stageId === "stg_carla_7"),
+      undefined,
+    );
+    assert.deepEqual(
+      new Set(recoveries.map((row) => row.gapCase)),
+      new Set(["UNDER_4H", "H4_TO_12H", "OVERNIGHT", "REST_DAY"]),
+    );
+    assert.equal(
+      seed.recoveries.find((row) => row.id === "rec_carla_1")?.carbsTargetG,
+      rateCarbs(1, WEIGHT.carla, 45),
+    );
+    assert.equal(seed.recoveries.find((row) => row.id === "rec_carla_3")?.sensitiveStomach, true);
+    assert.equal(
+      seed.recoveries.find((row) => row.id === "rec_carla_3")?.carbsTargetG,
+      rateCarbs(0.8, WEIGHT.carla, 150),
+    );
+    assert.equal(
+      seed.recoveries.find((row) => row.id === "rec_carla_4")?.carbsTargetG,
+      perKgCarbs(7, WEIGHT.carla),
+    );
+    assert.equal(
+      seed.stages.find((row) => row.id === "stg_carla_5")?.arrivalSource,
+      "FALLBACK_TIMER",
+    );
+    assert.equal(
+      seed.activities.find((row) => row.workoutId === "wrk_stg_carla_5"),
+      undefined,
+    );
+    const s4 = seed.logs.find((row) => row.id === "log_carla_s4");
+    const target = Math.round(fixtureFuelingGh(180) * 3);
+    assert.ok(Number(s4?.intakeCarbsG) < target * 0.75);
+    assert.equal(
+      recoveries.every((row) => row.engineVersion === "fixture"),
+      true,
+    );
   });
 });

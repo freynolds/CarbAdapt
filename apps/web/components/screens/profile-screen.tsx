@@ -52,24 +52,24 @@ export function ProfileScreen() {
       : { bottles: 0, flasks: 0, bladders: 0 };
   const productCount = products.status === "ready" ? products.data.products.length : 0;
   const plan = gut.status === "ready" ? gut.data.plan : null;
-  const initial = (user.name ?? "?").slice(0, 1);
-
   return (
     <Screen title={t("prof.title")} tabs>
-      <Link href="/profile/account" className="cd rw">
-        <span className="avatar" style={{ width: 48, height: 48, fontSize: 20 }}>
-          {initial}
-        </span>
-        <span>
-          <b>{user.name}</b>
-          <span className="mu" style={{ display: "block" }}>
-            {user.email}
+      <div className="cd rw">
+        <Link href="/profile/account" className="rw" style={{ flex: 1 }}>
+          <span className="avatar" style={{ width: 44, height: 44, fontSize: 16 }}>
+            {initials(user.name)}
           </span>
-        </span>
-      </Link>
-      <button type="button" className="gh" onClick={logout}>
-        {t("prof.logout")}
-      </button>
+          <span>
+            <b>{user.name}</b>
+            <span className="mu" style={{ display: "block" }}>
+              {user.email}
+            </span>
+          </span>
+        </Link>
+        <button type="button" className="ch ci" onClick={logout}>
+          {t("prof.logout")}
+        </button>
+      </div>
 
       <p className="ey">{t("prof.modeSection")}</p>
       <div className="cd" style={{ padding: "6px 16px" }}>
@@ -158,6 +158,13 @@ export function ProfileScreen() {
       </div>
     </Screen>
   );
+}
+
+function initials(name: string | null): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
+  return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
 }
 
 function countGear(containers: { type: string }[]) {

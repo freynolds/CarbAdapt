@@ -4,10 +4,19 @@ import type { Workout } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
-import { Icon } from "@/components/icons";
-import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TypeChip } from "@/components/ui";
+import { BurstMark, IntakeMark } from "@/components/illustrations";
+import {
+  CarryLine,
+  ErrorText,
+  LoadingText,
+  NeedSignIn,
+  Preview,
+  Screen,
+  StepSegments,
+  TypeChip,
+} from "@/components/ui";
 import { formatDay, formatDuration, formatNumber } from "@/lib/format";
-import { blocksOf, carryItems } from "@/lib/json";
+import { blocksOf, carryItems, scheduleOf, type BlockRow, type ScheduleMark } from "@/lib/json";
 import {
   parseAchievements,
   parseContainers,
@@ -16,11 +25,19 @@ import {
   parseWorkout,
 } from "@/lib/parse";
 
+const ZONE_FILL: Record<string, string> = {
+  Z1: "#3DDC97",
+  Z2: "#4DA3FF",
+};
+
+const INTAKE_KEY = ["water", "isotonic", "gel", "solid"] as const;
+
 export function WorkoutScreen({ id }: { id: string }) {
   const { token, me, t, locale } = useApp();
   const zone = me?.user.timezone ?? "UTC";
   const workout = useGet(token ? `/workouts/${id}` : null, parseWorkout);
   const gut = useGet(token ? "/gut-plan" : null, parseGut);
+  const containers = useGet(token ? "/containers" : null, parseContainers);
   const [localGh, setLocalGh] = useState<number | null>(null);
 
   if (!token)
@@ -45,6 +62,12 @@ export function WorkoutScreen({ id }: { id: string }) {
   const row = workout.data.workout;
   const plan = row.fuelingPlan;
   const blocks = blocksOf(row.structure);
+  const schedule = scheduleOf(plan?.schedule);
+  const colorById = new Map(
+    containers.status === "ready"
+      ? containers.data.containers.map((item) => [item.id, item.colorHex] as const)
+      : [],
+  );
   const gutPlan = gut.status === "ready" ? gut.data.plan : null;
   const planGh = plan?.targetGPerH ?? null;
   const shownGh = localGh ?? planGh;
@@ -89,28 +112,32 @@ export function WorkoutScreen({ id }: { id: string }) {
           <p className="preview">{t("common.preview")}</p>
         </div>
       ) : null}
-      {plan ? (
+      {plan || blocks.length > 0 ? (
         <>
-          <div className="rw" style={{ gap: 8 }}>
-            {(["drop", "bottle", "gel", "solid"] as const).map((name) => (
-              <span
-                key={name}
-                className="ic"
-                title={t(
-                  name === "drop"
+          <div className="marks">
+            {INTAKE_KEY.map((kind) => (
+              <span key={kind}>
+                <IntakeMark kind={kind} />
+                {t(
+                  kind === "water"
                     ? "wk.markers"
-                    : name === "bottle"
+                    : kind === "isotonic"
                       ? "wk.isotonic"
-                      : name === "gel"
+                      : kind === "gel"
                         ? "wk.gel"
                         : "wk.solid",
                 )}
-              >
-                <Icon name={name === "bottle" ? "bottle" : name} size={20} />
               </span>
             ))}
           </div>
+          {blocks.length > 0 ? (
+            <BlockStrip blocks={blocks} schedule={schedule} durationMin={row.durationMin ?? 0} />
+          ) : null}
           <p className="mu">{t("wk.cue")}</p>
+        </>
+      ) : null}
+      {plan ? (
+        <>
           {me?.user.mode === "GUT_TRAINING" && shownGh != null ? (
             <div className="cd">
               <p className="ey">{t("wk.target")}</p>
@@ -151,17 +178,13 @@ export function WorkoutScreen({ id }: { id: string }) {
             </Link>
           </div>
           {carryItems(plan.carryList).map((item, index) => (
-            <div className="rw" key={`${item.name}-${index}`}>
-              <div className="ic">
-                <Icon
-                  name={item.kind === "gel" ? "gel" : item.kind === "solid" ? "solid" : "bottle"}
-                />
-              </div>
-              <div>
-                <b>{item.name}</b>
-                <div className="mu m">{item.detail}</div>
-              </div>
-            </div>
+            <CarryLine
+              key={`${item.name}-${index}`}
+              name={item.name}
+              detail={item.detail}
+              kind={item.kind}
+              color={item.containerId ? colorById.get(item.containerId) : null}
+            />
           ))}
         </>
       ) : null}
@@ -199,6 +222,79 @@ export function WorkoutScreen({ id }: { id: string }) {
         </Link>
       ) : null}
     </Screen>
+  );
+}
+
+function markColor(kind: ScheduleMark["kind"]): string {
+  if (kind === "water") return "#4DA3FF";
+  if (kind === "gel") return "#FF6A3D";
+  if (kind === "solid") return "#F4F1EA";
+  return "#C6F135";
+}
+
+function IntakeShape({ kind, x, y }: { kind: ScheduleMark["kind"]; x: number; y: number }) {
+  if (kind === "water") return <circle cx={x} cy={y} r="5" fill="#4DA3FF" />;
+  if (kind === "gel")
+    return (
+      <polygon points={`${x},${y - 6} ${x + 6},${y} ${x},${y + 6} ${x - 6},${y}`} fill="#FF6A3D" />
+    );
+  if (kind === "solid") return <rect x={x - 4} y={y - 4} width="8" height="8" fill="#F4F1EA" />;
+  return <polygon points={`${x},${y - 6} ${x + 5},${y + 4} ${x - 5},${y + 4}`} fill="#C6F135" />;
+}
+
+/** Equal-height zone strip. Bar height in the design encodes sample watts the fixtures do not store. */
+function BlockStrip({
+  blocks,
+  schedule,
+  durationMin,
+}: {
+  blocks: BlockRow[];
+  schedule: ScheduleMark[];
+  durationMin: number;
+}) {
+  const width = 342;
+  const total = blocks.reduce((sum, block) => sum + block.durationMin, 0) || 1;
+  const span = durationMin > 0 ? durationMin : total;
+  let cursor = 0;
+  return (
+    <svg className="chart" viewBox={`0 0 ${width} 100`} role="img">
+      {blocks.map((block) => {
+        const bar = (block.durationMin / total) * width;
+        const node = (
+          <rect
+            key={`${block.name}-${cursor}`}
+            x={cursor}
+            y={36}
+            width={Math.max(bar - 1, 1)}
+            height={48}
+            fill={block.zone && ZONE_FILL[block.zone] ? ZONE_FILL[block.zone] : "#2B3A55"}
+          >
+            <title>{`${block.name} · ${block.zone ?? "—"} · ${block.durationMin} min`}</title>
+          </rect>
+        );
+        cursor += bar;
+        return node;
+      })}
+      {schedule.map((mark) => {
+        const x = Math.min(width - 6, Math.max(6, (mark.offsetMin / span) * width));
+        const label =
+          mark.carbsG != null
+            ? `${mark.offsetMin} min · ${mark.carbsG} g`
+            : `${mark.offsetMin} min`;
+        return (
+          <g key={`${mark.kind}-${mark.offsetMin}`}>
+            <title>{label}</title>
+            <path
+              d={`M${x} 28V84`}
+              stroke={markColor(mark.kind)}
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+            />
+            <IntakeShape kind={mark.kind} x={x} y={18} />
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -286,6 +382,7 @@ export function QuestionnaireScreen({ id }: { id: string }) {
       back={`/workouts/${id}`}
     >
       <Preview />
+      <StepSegments total={steps.length} current={step} />
       <p className="ey">{t("q.step", { n: step + 1, total: steps.length })}</p>
       {current === "carbs" ? (
         <>
@@ -461,7 +558,7 @@ export function QuestionnaireScreen({ id }: { id: string }) {
 }
 
 export function CelebrationScreen({ id }: { id: string }) {
-  const { token, t, me } = useApp();
+  const { token, t } = useApp();
   const list = useGet(token ? "/achievements" : null, parseAchievements);
   if (!token)
     return (
@@ -482,34 +579,14 @@ export function CelebrationScreen({ id }: { id: string }) {
       </Screen>
     );
   const item = list.data.achievements.find((row) => row.id === id);
-  const initial = (me?.user.name ?? "C").slice(0, 1);
   return (
     <Screen>
       <div className="burst">
-        <svg className="rays" viewBox="0 0 200 200" aria-hidden="true">
-          {Array.from({ length: 16 }, (_, index) => {
-            const angle = (index / 16) * Math.PI * 2;
-            const x2 = 100 + Math.cos(angle) * 90;
-            const y2 = 100 + Math.sin(angle) * 90;
-            return (
-              <line
-                key={index}
-                x1="100"
-                y1="100"
-                x2={x2}
-                y2={y2}
-                stroke="#C6F135"
-                strokeWidth="2"
-                opacity="0.7"
-              />
-            );
-          })}
-        </svg>
-        <div className="avatar">{initial}</div>
+        <div style={{ width: "min(100%, 280px)" }}>
+          <BurstMark value={item ? String(item.valueGh) : "—"} />
+        </div>
         <p className="ey">{t("celeb.kicker")}</p>
         <h1 className="h2">{t("celeb.title")}</h1>
-        <p className="big">{item ? item.valueGh : "—"}</p>
-        <p className="m">g/h</p>
       </div>
       <Link href="/home" className="bt">
         {t("common.done")}

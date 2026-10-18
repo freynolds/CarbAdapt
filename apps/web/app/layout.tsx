@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { AppState, DevBar } from "@/components/app-state";
+import { IconSprite } from "@/components/icons";
 import "./globals.css";
 
 const display = localFont({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${display.variable} ${body.variable} ${mono.variable}`}
     >
       <body>
+        <IconSprite />
         <AppState>
           <div className="stage">
             <DevBar />

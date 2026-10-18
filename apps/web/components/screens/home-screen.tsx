@@ -4,9 +4,9 @@ import type { Todo } from "@carbadapt/contracts";
 import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
 import { useApp, useGet } from "@/components/app-state";
-import { Icon } from "@/components/icons";
 import {
   BigStats,
+  CarryLine,
   ErrorText,
   LoadingText,
   NeedSignIn,
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { addDays, formatDay, formatDuration, formatNumber, todayKey } from "@/lib/format";
 import { carryItems } from "@/lib/json";
-import { parseGut, parseHome, parseRaces, parseWorkouts } from "@/lib/parse";
+import { parseContainers, parseGut, parseHome, parseRaces, parseWorkouts } from "@/lib/parse";
 
 function todoHref(todo: Todo, raceByRehearsal: Map<string, string>): string {
   const ref = todo.refId;
@@ -115,19 +115,25 @@ export function HomeScreen() {
             {steps.map((step) => (
               <div key={step.id}>
                 <i
-                  className={step.status === "UPCOMING" ? undefined : "on"}
+                  className={
+                    step.status === "CURRENT"
+                      ? "nowbar"
+                      : step.status === "DONE"
+                        ? "done"
+                        : undefined
+                  }
                   style={{
                     height: 16 + (step.gh / Math.max(...steps.map((row) => row.gh), 1)) * 90,
                   }}
                 />
-                <span>{step.gh}</span>
+                <span className={step.status === "CURRENT" ? "now" : undefined}>{step.gh}</span>
               </div>
             ))}
           </div>
           {hero ? (
             <Link
               href={`/workouts/${hero.id}`}
-              className="cd"
+              className="cd ring"
               style={{ display: "flex", flexDirection: "column", gap: 8 }}
             >
               <div className="rw" style={{ justifyContent: "space-between" }}>
@@ -141,15 +147,14 @@ export function HomeScreen() {
               <div>
                 <b>{hero.name}</b> <span className="m mu">{formatDuration(hero.durationMin)}</span>
               </div>
-              <p className="mu m">
-                {t("home.targetLine", {
-                  gh:
-                    hero.fuelingPlan?.targetGPerH ??
-                    plan.steps.find((step) => step.status === "CURRENT")?.gh ??
-                    plan.goalGh,
-                  total: hero.fuelingPlan?.totalCarbsG ?? "—",
-                })}
-              </p>
+              <GutTarget
+                gh={
+                  hero.fuelingPlan?.targetGPerH ??
+                  plan.steps.find((step) => step.status === "CURRENT")?.gh ??
+                  plan.goalGh
+                }
+                total={hero.fuelingPlan?.totalCarbsG ?? "—"}
+              />
             </Link>
           ) : null}
           {upcoming.map((row) => (
@@ -263,8 +268,27 @@ function TodoDetail({ type }: { type: Todo["type"] }) {
   return <span className="mu">{t(key)}</span>;
 }
 
-function Carry({ plan }: { plan: unknown }) {
+function GutTarget({ gh, total }: { gh: number | string; total: number | string }) {
   const { t } = useApp();
+  const line = t("home.targetLine", { gh: "\u0000", total });
+  const [before, after] = line.split("\u0000");
+  return (
+    <p className="rw" style={{ alignItems: "baseline", gap: 8 }}>
+      {before ? <span className="mu m">{before}</span> : null}
+      <b className="m gh-num">{gh}</b>
+      {after ? <span className="mu m">{after}</span> : null}
+    </p>
+  );
+}
+
+function Carry({ plan }: { plan: unknown }) {
+  const { token, t } = useApp();
+  const containers = useGet(token ? "/containers" : null, parseContainers);
+  const colorById = new Map(
+    containers.status === "ready"
+      ? containers.data.containers.map((row) => [row.id, row.colorHex] as const)
+      : [],
+  );
   const items = carryItems(plan);
   return (
     <>
@@ -275,18 +299,13 @@ function Carry({ plan }: { plan: unknown }) {
         </Link>
       </div>
       {items.map((item, index) => (
-        <div className="rw" key={`${item.name}-${index}`}>
-          <div className="ic">
-            <Icon
-              name={item.kind === "gel" ? "gel" : item.kind === "solid" ? "solid" : "bottle"}
-              size={24}
-            />
-          </div>
-          <div>
-            <b>{item.name}</b>
-            <div className="mu m">{item.detail}</div>
-          </div>
-        </div>
+        <CarryLine
+          key={`${item.name}-${index}`}
+          name={item.name}
+          detail={item.detail}
+          kind={item.kind}
+          color={item.containerId ? colorById.get(item.containerId) : null}
+        />
       ))}
     </>
   );

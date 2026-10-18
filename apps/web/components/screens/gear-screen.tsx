@@ -4,8 +4,9 @@ import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
-import { Icon } from "@/components/icons";
-import { ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
+import { Icon, carryIconName, paintIcon } from "@/components/icons";
+import { PlayMark, ScaleScene } from "@/components/illustrations";
+import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, StepSegments } from "@/components/ui";
 import { parseContainer, parseContainers, parseProducts } from "@/lib/parse";
 
 const COLORS: { id: string; label: MessageId; hex: string }[] = [
@@ -67,7 +68,10 @@ export function GearListScreen() {
                     : t("gear.calibrate");
               return (
                 <Link key={row.id} href={`/profile/gear/${row.id}`} className="td">
-                  <span className="ic" style={{ color: row.colorHex ?? "#101A2B" }}>
+                  <span
+                    className="ic"
+                    style={{ color: paintIcon(row.name, row.type, row.colorHex) }}
+                  >
                     <Icon name={icon} />
                   </span>
                   <div>
@@ -94,13 +98,20 @@ export function GearFormScreen({ id }: { id?: string }) {
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("750");
   const [content, setContent] = useState("WATER");
-  const [color, setColor] = useState("red");
+  const [color, setColor] = useState<string | null>(null);
   const [colorsOpen, setColorsOpen] = useState(false);
   const row = existing.status === "ready" ? existing.data.container : null;
   const shownType = row?.type ?? type;
   const shownName = name || row?.name || "";
   const shownCapacity = capacity || (row ? String(row.capacityMl) : "750");
   const shownContent = row?.usualContent ?? content;
+  const storedSwatch = COLORS.find(
+    (swatch) => swatch.hex.toLowerCase() === (row?.colorHex ?? "").toLowerCase(),
+  );
+  const activeColor = color ?? storedSwatch?.id ?? null;
+  const activeHex = color
+    ? COLORS.find((swatch) => swatch.id === color)?.hex
+    : (row?.colorHex ?? COLORS[0]?.hex);
   return (
     <Screen
       kicker={id ? t("gear.edit") : t("gear.add")}
@@ -166,12 +177,21 @@ export function GearFormScreen({ id }: { id?: string }) {
             <i>›</i>
           </button>
           {colorsOpen ? (
+            <div className="cd" style={{ display: "flex", justifyContent: "center" }}>
+              <Icon
+                name={carryIconName(shownName, shownType)}
+                size={64}
+                style={{ color: paintIcon(shownName, shownType, activeHex) }}
+              />
+            </div>
+          ) : null}
+          {colorsOpen ? (
             <div className="colors">
               {COLORS.map((swatch) => (
                 <button
                   key={swatch.id}
                   type="button"
-                  className={color === swatch.id ? "swatch sel" : "swatch"}
+                  className={activeColor === swatch.id ? "swatch sel" : "swatch"}
                   style={{
                     background: swatch.hex,
                     color: swatch.id === "clear" || swatch.id === "yellow" ? "#101A2B" : "#F4F1EA",
@@ -249,10 +269,18 @@ export function CalibrateScreen({ id }: { id: string }) {
             : t(flask ? "calb.squeeze" : "calb.sip")
       }
       back={`/profile/gear/${id}`}
+      lead={
+        weightIndex >= 0 || current === "done" ? (
+          <StepSegments total={4} current={current === "done" ? 4 : weightIndex} />
+        ) : undefined
+      }
     >
       <Preview />
       {current === "intro" ? (
         <>
+          <div className="cd" style={{ display: "flex", justifyContent: "center" }}>
+            <PlayMark />
+          </div>
           <p>{t("calb.howto")}</p>
           <div className="note">
             <b>{t("calb.why")}</b>
@@ -288,6 +316,9 @@ export function CalibrateScreen({ id }: { id: string }) {
       {current === "setup" ? (
         <>
           <h2 className="h2">{t("calb.setup")}</h2>
+          <div className="cd" style={{ display: "flex", justifyContent: "center" }}>
+            <ScaleScene kind={row.type === "BLADDER" ? "bladder" : flask ? "flask" : "bottle"} />
+          </div>
           <p>
             {t(
               row.type === "BLADDER"
@@ -326,6 +357,9 @@ export function CalibrateScreen({ id }: { id: string }) {
       ) : null}
       {weightIndex >= 0 ? (
         <>
+          <div className="cd" style={{ display: "flex", justifyContent: "center" }}>
+            <ScaleScene kind={row.type === "BLADDER" ? "bladder" : flask ? "flask" : "bottle"} />
+          </div>
           <p className="ey">{t("calb.step", { n: weightIndex + 1 })}</p>
           <label className="field">
             <span>g</span>

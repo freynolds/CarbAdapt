@@ -172,7 +172,6 @@ button {
   height: 40px;
   border-radius: 12px;
   background: var(--ib);
-  color: var(--ca-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,6 +257,11 @@ button {
   gap: 2px;
   font-size: 11px;
   color: var(--mu);
+}
+
+.tb a svg {
+  width: 24px;
+  height: 24px;
 }
 
 .tb a.on {
@@ -402,8 +406,12 @@ button {
   font-style: normal;
 }
 
-.ladder i.on {
+.ladder i.done {
   background: var(--ca-glucose);
+}
+
+.ladder i.nowbar {
+  background: var(--ca-ember);
 }
 
 .ladder span {
@@ -411,6 +419,98 @@ button {
     700 11px var(--font-mono),
     monospace;
   color: var(--mu);
+}
+
+.ladder span.now {
+  color: var(--ca-ember);
+  font-size: 14px;
+}
+
+.ring {
+  box-shadow: inset 0 0 0 2px var(--ca-ember);
+}
+
+.gh-num {
+  font-size: 40px;
+  line-height: 1;
+  color: var(--ca-ember);
+}
+
+.sg {
+  display: flex;
+  gap: 4px;
+}
+
+.sg i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ca-tarmac);
+  font-style: normal;
+}
+
+.sg .d {
+  background: var(--ca-glucose);
+}
+
+.sg .c {
+  background: var(--ca-ember);
+}
+
+.pr {
+  display: flex;
+  gap: 6px;
+}
+
+.pr i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ln);
+  font-style: normal;
+}
+
+.pr i.on {
+  background: var(--ca-glucose);
+}
+
+.marks {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--mu);
+}
+
+.marks span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track {
+  position: relative;
+  height: 28px;
+  margin: 4px 0 8px;
+}
+
+.track i {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ln);
+  font-style: normal;
+}
+
+.track b {
+  position: absolute;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
 }
 
 .choice,
@@ -679,6 +779,30 @@ button {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+.sw {
+  width: 46px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--ln);
+  display: flex;
+  padding: 3px;
+  box-sizing: border-box;
+  flex: none;
+}
+
+.sw.on {
+  background: var(--ca-glucose);
+  justify-content: flex-end;
+}
+
+.sw i {
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--ca-night);
+  font-style: normal;
 }
 
 .swatch {

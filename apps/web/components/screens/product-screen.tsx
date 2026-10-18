@@ -4,6 +4,7 @@ import type { Product, Workout } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { ScanFrame } from "@/components/illustrations";
 import { ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
 import { addDays, formatNumber, todayKey } from "@/lib/format";
 import { carryItems } from "@/lib/json";
@@ -47,19 +48,24 @@ export function ProductListScreen() {
         return (
           <section key={type}>
             <p className="ey">{t(`prod.${type}`)}</p>
-            {rows.map((row) => (
-              <Link key={row.id} href={`/profile/products/${row.id}`} className="td">
-                <div>
-                  <b>
-                    {row.favorite ? "★ " : ""}
-                    {row.name}
-                  </b>
-                  <span className="mu">{row.brand}</span>
-                  <span className="mu m">{line(row, t, locale)}</span>
+            <div className="cd" style={{ padding: "4px 16px" }}>
+              {rows.map((row, index) => (
+                <div key={row.id}>
+                  {index > 0 ? <div className="hr" /> : null}
+                  <Link href={`/profile/products/${row.id}`} className="td">
+                    <div>
+                      <b>
+                        {row.favorite ? "★ " : ""}
+                        {row.name}
+                      </b>
+                      <span className="mu">{row.brand}</span>
+                      <span className="mu m">{line(row, t, locale)}</span>
+                    </div>
+                    <i>›</i>
+                  </Link>
                 </div>
-                <i>›</i>
-              </Link>
-            ))}
+              ))}
+            </div>
           </section>
         );
       })}
@@ -136,7 +142,10 @@ export function ProductDetailScreen({ id }: { id: string }) {
         <Row label={t("prod.caffeine")} value={`${row.caffeineMg ?? 0} mg`} />
       </div>
       <button type="button" className="choice" onClick={() => setFavorite(!starred)}>
-        {t("prod.favorite")}
+        <span>{t("prod.favorite")}</span>
+        <span className={starred ? "sw on" : "sw"}>
+          <i />
+        </span>
       </button>
       <Link href="/profile/products/new" className="choice">
         {t("common.edit")}
@@ -217,7 +226,10 @@ export function ProductNewScreen() {
       <p className="mu">{t("prod.scanNote")}</p>
       {phase === "scan" ? (
         <>
-          <div className="frame">{t("prod.align")}</div>
+          <ScanFrame />
+          <p className="mu" style={{ textAlign: "center" }}>
+            {t("prod.align")}
+          </p>
           <button type="button" className="bt" onClick={() => setPhase("confirm")}>
             {t("common.continue")}
           </button>

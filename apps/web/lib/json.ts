@@ -72,6 +72,26 @@ export function carryItems(value: unknown): CarryItem[] {
   });
 }
 
+export type ScheduleMark = {
+  offsetMin: number;
+  kind: "water" | "isotonic" | "gel" | "solid";
+  carbsG: number | null;
+};
+
+const SCHEDULE_KIND = new Set<ScheduleMark["kind"]>(["water", "isotonic", "gel", "solid"]);
+
+/** Intake marks stored on a fueling plan. Unknown kinds are omitted. */
+export function scheduleOf(value: unknown): ScheduleMark[] {
+  return asArray(value).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const offsetMin = asNumber(row.offsetMin);
+    const kind = asString(row.kind);
+    if (offsetMin == null || !kind || !SCHEDULE_KIND.has(kind as ScheduleMark["kind"])) return [];
+    return [{ offsetMin, kind: kind as ScheduleMark["kind"], carbsG: asNumber(row.carbsG) }];
+  });
+}
+
 export type BlockRow = { name: string; durationMin: number; zone: string | null };
 
 export function blocksOf(value: unknown): BlockRow[] {

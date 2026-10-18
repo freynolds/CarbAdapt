@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useApp } from "@/components/app-state";
-import { Icon } from "@/components/icons";
+import { Icon, carryIconName, paintIcon } from "@/components/icons";
 
 export function Screen({
   title,
@@ -14,6 +14,7 @@ export function Screen({
   tabs = false,
   back,
   action,
+  lead,
   children,
   className,
 }: {
@@ -22,6 +23,7 @@ export function Screen({
   tabs?: boolean;
   back?: string;
   action?: ReactNode;
+  lead?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
@@ -35,6 +37,7 @@ export function Screen({
             {action}
           </div>
         ) : null}
+        {lead}
         {kicker ? <p className="ey">{kicker}</p> : null}
         {title ? <h1 className="t">{title}</h1> : null}
         {children}
@@ -132,6 +135,53 @@ export function BigStats({ items }: { items: { value: string; label: string }[] 
           <b>{item.value}</b>
           <span>{item.label}</span>
         </div>
+      ))}
+    </div>
+  );
+}
+
+export function CarryLine({
+  name,
+  detail,
+  kind,
+  color,
+}: {
+  name: string;
+  detail?: string;
+  kind: string;
+  color?: string | null;
+}) {
+  const icon = carryIconName(name, kind);
+  return (
+    <div className="rw">
+      <div className="ic" style={{ color: paintIcon(name, kind || icon, color) }}>
+        <Icon name={icon} size={24} />
+      </div>
+      <div>
+        <b>{name}</b>
+        {detail ? <div className="mu m">{detail}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Questionnaire and calibration segments: done glucose, current ember. */
+export function StepSegments({ total, current }: { total: number; current: number }) {
+  return (
+    <div className="sg" aria-hidden="true">
+      {Array.from({ length: total }, (_, index) => (
+        <i key={index} className={index < current ? "d" : index === current ? "c" : undefined} />
+      ))}
+    </div>
+  );
+}
+
+/** Onboarding question bar. The first `filled` of 7 segments are lit. */
+export function QuestionDots({ filled }: { filled: number }) {
+  return (
+    <div className="pr" aria-hidden="true">
+      {Array.from({ length: 7 }, (_, index) => (
+        <i key={index} className={index < filled ? "on" : undefined} />
       ))}
     </div>
   );

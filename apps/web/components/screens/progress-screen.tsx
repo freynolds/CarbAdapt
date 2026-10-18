@@ -99,25 +99,31 @@ export function ProgressScreen() {
         <p className="mu">{t("prog.empty")}</p>
       ) : (
         <svg className="chart" viewBox="0 0 320 180" role="img">
-          {[0, 0.5, 1].map((fraction) => (
-            <text
-              key={fraction}
-              x="0"
-              y={160 - fraction * 140}
-              fill="currentColor"
-              fontSize="10"
-              opacity="0.6"
-            >
-              {Math.round(max * fraction)}
-            </text>
-          ))}
+          {[0, 0.5, 1].map((fraction) => {
+            const y = 160 - fraction * 140;
+            return (
+              <g key={fraction}>
+                <line x1="28" x2="320" y1={y} y2={y} stroke="var(--ln)" />
+                <text x="0" y={y - 4} fill="currentColor" fontSize="10" opacity="0.6">
+                  {Math.round(max * fraction)}
+                </text>
+              </g>
+            );
+          })}
           {points.map((point, index) => {
             const x = 36 + index * (270 / Math.max(points.length - 1, 1));
             const y = 160 - ((point.gh ?? 0) / max) * 140;
             const symptom = point.symptom ?? "NONE";
             return (
               <a key={point.logId} href={`/workouts/${point.workoutId}`}>
-                <circle cx={x} cy={y} r="7" fill={COLOR[symptom]}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="7"
+                  fill={COLOR[symptom]}
+                  stroke="var(--cd)"
+                  strokeWidth="2"
+                >
                   <title>{point.name}</title>
                 </circle>
               </a>

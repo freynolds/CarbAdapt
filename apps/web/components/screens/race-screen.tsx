@@ -4,9 +4,17 @@ import { BreakfastNote, SWEAT_RATE_FORMULA } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
-import { BigStats, ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
+import {
+  BigStats,
+  CarryLine,
+  ErrorText,
+  LoadingText,
+  NeedSignIn,
+  Preview,
+  Screen,
+} from "@/components/ui";
 import { formatClock, formatDay, formatDuration, formatNumber } from "@/lib/format";
-import { asArray, asRecord, asString, intakesOf, mealsOf } from "@/lib/json";
+import { asArray, asNumber, asRecord, asString, intakesOf, mealsOf } from "@/lib/json";
 import {
   parseBreakfast,
   parseLoading,
@@ -328,7 +336,16 @@ export function StrategyScreen({ id }: { id: string }) {
                 <p className="ey">{t("home.carry")}</p>
                 {asArray(asRecord(plan.carryList)?.items).map((item, itemIndex) => {
                   const record = asRecord(item);
-                  return <p key={itemIndex}>{asString(record?.name) ?? "—"}</p>;
+                  const name = asString(record?.name) ?? "—";
+                  const servings = asNumber(record?.servings);
+                  return (
+                    <CarryLine
+                      key={itemIndex}
+                      name={name}
+                      kind={name}
+                      detail={servings != null ? `${servings} ×` : undefined}
+                    />
+                  );
                 })}
                 <button
                   type="button"

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/app-state";
 import { Mark } from "@/components/icons";
-import { Preview, Screen } from "@/components/ui";
+import { Preview, QuestionDots, Screen } from "@/components/ui";
 import { formatNumber } from "@/lib/format";
 import {
   readAnswers,
@@ -135,7 +135,12 @@ function SportStep() {
   const { t } = useApp();
   const { answers, patch } = useDraft();
   return (
-    <Screen kicker={t("on.step", { n: 1 })} title={t("on.q1")} back="/onboarding/welcome">
+    <Screen
+      lead={<QuestionDots filled={1} />}
+      kicker={t("on.step", { n: 1 })}
+      title={t("on.q1")}
+      back="/onboarding/welcome"
+    >
       <div className="wrap">
         {SPORTS.map(([id, label]) => (
           <button
@@ -213,7 +218,12 @@ function WeightStep() {
   const { t } = useApp();
   const { answers, patch } = useDraft();
   return (
-    <Screen kicker={t("on.step", { n: 2 })} title={t("on.q2")} back="/onboarding/sport">
+    <Screen
+      lead={<QuestionDots filled={2} />}
+      kicker={t("on.step", { n: 2 })}
+      title={t("on.q2")}
+      back="/onboarding/sport"
+    >
       <label className="field">
         <span>kg</span>
         <input
@@ -237,7 +247,12 @@ function EffortStep() {
   const { t } = useApp();
   const { answers, patch } = useDraft();
   return (
-    <Screen kicker={t("on.step", { n: 3 })} title={t("on.q3")} back="/onboarding/weight">
+    <Screen
+      lead={<QuestionDots filled={3} />}
+      kicker={t("on.step", { n: 3 })}
+      title={t("on.q3")}
+      back="/onboarding/weight"
+    >
       <div className="wrap">
         <button
           type="button"
@@ -304,7 +319,12 @@ function CarbsStep() {
       : null;
   const rough = roughCarbsPerHour({ ...answers, carbKnown: "unknown" });
   return (
-    <Screen kicker={t("on.step", { n: 4 })} title={t("on.q4")} back="/onboarding/effort">
+    <Screen
+      lead={<QuestionDots filled={4} />}
+      kicker={t("on.step", { n: 4 })}
+      title={t("on.q4")}
+      back="/onboarding/effort"
+    >
       <div className="wrap">
         <button
           type="button"
@@ -410,7 +430,12 @@ function FuelStep() {
     patch({ fuels });
   }
   return (
-    <Screen kicker={t("on.step", { n: 5 })} title={t("on.q5")} back="/onboarding/carbs">
+    <Screen
+      lead={<QuestionDots filled={5} />}
+      kicker={t("on.step", { n: 5 })}
+      title={t("on.q5")}
+      back="/onboarding/carbs"
+    >
       <Preview />
       <div className="wrap">
         {FUELS.map(([id, label]) => (
@@ -444,7 +469,12 @@ function SweatStep() {
   const { t } = useApp();
   const { answers, patch } = useDraft();
   return (
-    <Screen kicker={t("on.step", { n: 6 })} title={t("on.q6")} back="/onboarding/fuel">
+    <Screen
+      lead={<QuestionDots filled={6} />}
+      kicker={t("on.step", { n: 6 })}
+      title={t("on.q6")}
+      back="/onboarding/fuel"
+    >
       <button
         type="button"
         className={answers.sweat === "estimate" ? "choice sel" : "choice"}
@@ -496,7 +526,12 @@ function GutStep() {
     patch({ gut });
   }
   return (
-    <Screen kicker={t("on.step", { n: 7 })} title={t("on.q7")} back="/onboarding/sweat">
+    <Screen
+      lead={<QuestionDots filled={7} />}
+      kicker={t("on.step", { n: 7 })}
+      title={t("on.q7")}
+      back="/onboarding/sweat"
+    >
       <div className="wrap">
         {GUT.map(([id, label]) => (
           <button

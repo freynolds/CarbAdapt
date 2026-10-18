@@ -1,6 +1,7 @@
-import type { ProductList } from "./products.schema.js";
+import type { ProductList, ProductResponse } from "@carbadapt/contracts";
 
-/** Product library. The mock returns fixed rows. Staging and production are not written. */
+/** The signed-in athlete's product library. Deleted rows stay out of the list. */
 export interface ProductsService {
-  listProducts(): Promise<ProductList>;
+  listProducts(userId: string): Promise<ProductList>;
+  getProduct(userId: string, id: string): Promise<ProductResponse>;
 }

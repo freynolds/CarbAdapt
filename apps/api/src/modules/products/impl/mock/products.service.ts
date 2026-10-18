@@ -1,32 +1,22 @@
+import { HttpError } from "../../../../http/errors.js";
+import { presentProduct } from "../../../../http/present.js";
+import type { ModuleDeps } from "../../../deps.js";
 import type { ProductsService } from "../../products.service.js";
-import type { ProductList } from "../../products.schema.js";
 
-/** Placeholder rows so the route has a body. Not seed data and not a catalog. */
-const MOCK_PRODUCTS: ProductList = {
-  products: [
-    {
-      id: "prod_mock_drink",
-      type: "DRINK_MIX",
-      name: "Example drink mix",
-      brand: "Example",
-      carbsG: 80,
-      favorite: true,
-    },
-    {
-      id: "prod_mock_gel",
-      type: "GEL",
-      name: "Example gel",
-      brand: "Example",
-      carbsG: 25,
-      favorite: false,
-    },
-  ],
-};
-
-export function createMockProductsService(): ProductsService {
+export function createMockProductsService(deps: ModuleDeps): ProductsService {
+  const { db } = deps;
   return {
-    async listProducts() {
-      return MOCK_PRODUCTS;
+    async listProducts(userId) {
+      const rows = await db.product.findMany({
+        where: { userId, deletedAt: null },
+        orderBy: { name: "asc" },
+      });
+      return { products: rows.map(presentProduct) };
+    },
+    async getProduct(userId, id) {
+      const row = await db.product.findFirst({ where: { id, userId, deletedAt: null } });
+      if (!row) throw new HttpError(404, "not_found", "Product not found.");
+      return { product: presentProduct(row) };
     },
   };
 }

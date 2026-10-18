@@ -7,7 +7,7 @@ Prisma schema, the generated client, and migrations. MySQL 8.4 runs in Docker fr
 - `prisma/schema.prisma`. The models from [PR #2](https://github.com/freynolds/CarbAdapt/pull/2), on Prisma 6.19.
 - `prisma/migrations/`. The first migration is `init`.
 - `prisma/seed.ts` and `src/insert-seed.ts`. They load `packages/fixtures` into MySQL. The seed replaces application rows, so running it again is safe and refreshes dates from the new run. It does not touch `_prisma_migrations`.
-- A thin client wrapper around `PrismaClient` when the first caller needs a shared connection. Today the export is the class plus `insertSeed`.
+- A thin client wrapper around `PrismaClient` when the first caller needs a shared connection. Today the export is the class plus `insertSeed`. `package.json` `exports` points at `src/index.ts` so other workspaces can import `@carbadapt/db`.
 
 `scripts/run-prisma.mjs` loads the repo-root `.env` and then runs the Prisma CLI. `generate` and `validate` do not connect to MySQL. They need `DATABASE_URL` to be set, and fall back to the value in `.env.example` when `.env` is absent. `npm run db:migrate` runs `prisma migrate dev`. `npm run db:seed` inserts Ana and the USDA foods. `npm run db:reset` drops the database, applies migrations, and seeds. Both can be run twice.
 

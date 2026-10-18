@@ -1,4 +1,7 @@
-/** Loading days, race breakfast, and the rehearsal. No operations yet. */
+import type { BreakfastResponse, LoadingDayResponse } from "@carbadapt/contracts";
+
+/** Stored loading days, plus the mock breakfast derivation for a race start. */
 export interface CarbLoadingService {
-  readonly module: "carb-loading";
+  getLoadingDay(userId: string, raceId: string, day: string): Promise<LoadingDayResponse>;
+  getBreakfast(userId: string, raceId: string): Promise<BreakfastResponse>;
 }

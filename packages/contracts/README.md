@@ -4,12 +4,13 @@ The API contract: the document clients generate from, not the Express implementa
 
 ## What goes here
 
-- OpenAPI 3.1 for the REST API.
+- Zod schemas for the mock API's response bodies. `apps/api` imports them and parses every JSON response.
+- OpenAPI 3.1 for the REST API, generated from those schemas once the shapes settle.
 - A generated TypeScript client for `apps/web` (and, in M5, the source for the Swift client).
 - The device protocol JSON schema.
 - Webhook payload fixtures replayed in CI.
 
-Zod schemas that validate a single request stay next to the route in `apps/api`. When a schema is the public contract, it is generated from or checked against this package, not hand-copied.
+Zod schemas that validate a single request stay next to the route in `apps/api`. Response shapes live here so the API and a later client share one definition.
 
 ## What must NOT go here
 
@@ -18,4 +19,10 @@ Zod schemas that validate a single request stay next to the route in `apps/api`.
 
 ## Milestone
 
-The first spec is written when the mock endpoints in M1 have a stable response shape. It is frozen at M5, when iOS generates a Swift client. Webhook fixtures arrive in M4.
+| When      | What lands                                                     |
+| --------- | -------------------------------------------------------------- |
+| Step 1    | Empty package                                                  |
+| This step | Zod response schemas for the mock reads                        |
+| Later     | OpenAPI generated from those schemas, then a TypeScript client |
+| M4        | Webhook fixtures                                               |
+| M5        | Freeze the spec and generate the Swift client                  |

@@ -1,4 +1,6 @@
-/** The static food list used by loading meals. No operations yet. */
+import type { FoodList } from "@carbadapt/contracts";
+
+/** Static USDA food list. Not owned by an athlete. */
 export interface FoodsService {
-  readonly module: "foods";
+  listFoods(query?: string): Promise<FoodList>;
 }

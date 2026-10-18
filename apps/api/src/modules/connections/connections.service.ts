@@ -1,4 +1,6 @@
-/** TrainingPeaks, Strava, and later Garmin. Provider clients stay in packages/integrations. No operations yet. */
+import type { ConnectionList } from "@carbadapt/contracts";
+
+/** TrainingPeaks, Strava, and Garmin connection status. Tokens are never returned. */
 export interface ConnectionsService {
-  readonly module: "connections";
+  listConnections(userId: string): Promise<ConnectionList>;
 }

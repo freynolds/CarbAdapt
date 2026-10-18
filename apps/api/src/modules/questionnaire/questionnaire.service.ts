@@ -1,4 +1,6 @@
-/** Post-workout feedback, including add intake and last-session feedback. No operations yet. */
+import type { FeedbackResponse } from "@carbadapt/contracts";
+
+/** Post-workout feedback, including add intake and last-session feedback. */
 export interface QuestionnaireService {
-  readonly module: "questionnaire";
+  getFeedback(userId: string, workoutId: string): Promise<FeedbackResponse>;
 }

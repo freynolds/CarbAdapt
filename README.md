@@ -2,7 +2,7 @@
 
 CarbAdapt is an app for endurance fueling and gut training. This repository is the MVP: a Next.js web app and a separate Node API first, with iOS and Garmin Connect IQ later. Everything here runs on localhost. There is no deploy in this phase.
 
-The scaffold shows where each kind of code will live. The database schema, its first migration, and a seed for one demo athlete (Ana) are in `packages/db`. There is no product screen and no fueling engine yet.
+The scaffold shows where each kind of code will live. The database schema, its first migration, and a seed for one demo athlete (Ana) are in `packages/db`. The mock API reads that MySQL data for the signed-in athlete. There is no product screen and no fueling engine yet.
 
 ## Architecture
 
@@ -23,7 +23,7 @@ Mock data, when it arrives, is authored in `packages/fixtures` and loaded into M
 ```
 apps/
   web/            Next.js App Router. Placeholder page only.
-  api/            Express modules. GET /health and mock GET /products.
+  api/            Express modules. Mock reads from MySQL, plus local dev login.
   worker/         Placeholder. Job runner in M4. Not a workspace package yet.
   ios/            Placeholder. SwiftUI in M5. Not a workspace package yet.
   garmin-ciq/     Placeholder. Connect IQ data field after M5. Not a workspace package yet.
@@ -47,11 +47,11 @@ Each app and package README says what belongs there, what must stay out, and whi
 
 `apps/api/src/modules/` has one folder per domain (auth, profile, workouts, fueling, gear, products, foods, races, carb loading, gut training, sweat tests, questionnaire, achievements, notifications, connections). Each folder has a router, a service interface, Zod schemas, and a factory. The factory picks `impl/mock`, `impl/staging`, or `impl/production` from `APP_ENV`.
 
-`src/compose.ts` is the composition root: it builds every service from its factory and mounts every router. `GET /health` stays outside the modules. `GET /products` is the one wired route; in mock mode it returns hard-coded rows. Staging and production throw `not implemented` while the services are built, so only `mock` finishes booting.
+`src/compose.ts` is the composition root: it builds every service from its factory and mounts every router. `GET /health` stays outside the modules. In mock mode the domain routes read MySQL for the signed-in athlete. `POST /dev/login-as`, `GET /dev/athletes`, and `POST /dev/reset` are mounted only when `APP_ENV=mock`. Staging and production throw `not implemented` while the services are built, so only `mock` finishes booting.
 
 To add a module, copy `src/modules/products/`, then register its factory and router in `src/compose.ts`. Mount paths, and which plan areas share a prefix, are listed in `apps/api/README.md`.
 
-Switch environment with `APP_ENV` in the root `.env`: `mock` (the default), `staging`, or `production`. Restart the API after changing it. `npm test` checks the mock products route and that the other two environments throw.
+Switch environment with `APP_ENV` in the root `.env`: `mock` (the default), `staging`, or `production`. Restart the API after changing it. `npm test` hits the mock routes against MySQL and checks that staging and production throw. The endpoint list is in `apps/api/README.md`.
 
 ## Local setup
 
@@ -90,5 +90,11 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 - **MySQL image `mysql:8.4`**, localhost only, utf8mb4. `GET /health` does not ping the database.
 - **No Tailwind yet.** Tokens will land as CSS variables first. See `packages/design-tokens/README.md` and the extraction steps in `apps/web/README.md`.
 - **Board 4 of the design file is marked "earlier draft"** inside the gallery. The extraction notes treat it as non-canonical.
+
+- **Mock reads, not the PR #2 writes.** This step serves the mock-phase reads (profile, physical data, connections, containers, products, foods, workouts, fueling plans, post-workout logs, gut plan, achievements, sweat tests, races, carb loading, stage recovery, to-dos, and `GET /home`). Creates, patches, and deletes from draft PR #2 are not ported.
+- **Dev login takes `athleteId`.** `POST /dev/login-as` expects `{ "athleteId" }` (the user id, `usr_ana` after the seed), sets the `carbadapt_session` cookie, and also accepts `Authorization: Bearer`. `POST /dev/reset` calls `insertSeed`, which truncates and reseeds. It does not drop the database.
+- **A few paths differ from PR #2** so they stay on the module mounts: progress is `GET /achievements/progress`, and stage recovery is `GET /races/stages/:stageId/recovery`.
+- **Food responses omit USDA precision.** That flag lives only in `packages/fixtures`. The API does not import fixture stories on the read path.
+- **Race breakfast is a mock derivation** in the carb-loading module (1.5 g/kg before 08:00 local, otherwise 2 g/kg, 5 ml/kg of the demo isotonic). It is not stored and it is not the M3 engine.
 
 Still open from the build plan, and not decided here: a centered 390px column on desktop versus new desktop layouts, and the other proposed seed athletes.

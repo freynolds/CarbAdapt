@@ -3,3 +3,4 @@
  * Nothing here opens a connection. Callers construct PrismaClient themselves.
  */
 export { PrismaClient } from "@prisma/client";
+export { insertSeed } from "./insert-seed.js";

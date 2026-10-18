@@ -2,7 +2,7 @@
 
 CarbAdapt is an app for endurance fueling and gut training. This repository is the MVP: a Next.js web app and a separate Node API first, with iOS and Garmin Connect IQ later. Everything here runs on localhost. There is no deploy in this phase.
 
-The scaffold shows where each kind of code will live. The database schema and its first migration are in `packages/db`. There is no product screen, no seed, and no fueling logic yet.
+The scaffold shows where each kind of code will live. The database schema, its first migration, and a seed for one demo athlete (Ana) are in `packages/db`. There is no product screen and no fueling engine yet.
 
 ## Architecture
 
@@ -29,8 +29,8 @@ apps/
   garmin-ciq/     Placeholder. Connect IQ data field after M5. Not a workspace package yet.
 packages/
   config/         Base tsconfig and Prettier. ESLint flat config is the repo-root file.
-  db/             Prisma schema, the first migration, and the client export. No seed yet.
-  fixtures/       Demo data for the seed. Empty until M1.
+  db/             Prisma schema, the first migration, the client export, and the seed.
+  fixtures/       Demo data for the seed. Ana and the USDA food sample.
   engine/         Pure calc functions. Empty until M3.
   contracts/      OpenAPI and generated clients. Empty until the mock API settles.
   integrations/   Strava, TrainingPeaks, Garmin adapters. Empty until M4.
@@ -61,12 +61,12 @@ Requires Node.js 22 or newer, npm 10 (the `packageManager` field pins 10.9.9), a
 cp .env.example .env
 npm install
 npm run db:up
-npm run db:migrate
+npm run db:reset
 npm run dev:web
 npm run dev:api
 ```
 
-`npm install` also generates the Prisma client (`npm run db:generate`). `npm run db:validate` checks the schema without migrating. `npm run db:migrate` applies migrations with `prisma migrate dev`. The first migration creates every model. It does not insert rows.
+`npm install` also generates the Prisma client (`npm run db:generate`). `npm run db:validate` checks the schema without migrating. `npm run db:migrate` applies migrations with `prisma migrate dev` and does not insert rows. `npm run db:seed` replaces application rows with Ana and the USDA foods, using dates relative to the run. `npm run db:reset` drops the database, migrates, and seeds. Both seed and reset can be run twice.
 
 Open the web placeholder at [http://127.0.0.1:3000](http://127.0.0.1:3000). The API liveness check is [http://127.0.0.1:4000/health](http://127.0.0.1:4000/health) and returns `{"status":"ok"}`.
 
@@ -82,7 +82,8 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 
 - **npm workspaces, without Turborepo.** The build plan names pnpm workspaces and Turborepo. This repo uses npm. The `workspaces` array is `apps/web`, `apps/api`, and `packages/*`. `apps/worker`, `apps/ios`, and `apps/garmin-ciq` stay out even if a `package.json` is added there later. Turborepo is left out until there is a task graph worth caching. `npm run dev` starts web and api together.
 - **Extra folders.** `packages/fixtures`, `packages/config`, and `docs/` are in the agreed layout and were not in the shortest step-1 list. Fixtures exist so demo data does not land in the API. Config holds the shared tsconfig and Prettier file.
-- **Schema deltas from the plan.** `packages/db/README.md` lists the seven differences kept from PR #2 (`User.mode` optional, `SweatTest.movedFrom`, `PostWorkoutLog.ladderEligible`, `Workout.stageId`, `FoodItem.sodiumMgPer100g`, `Race.startAt`, and explicit `onDelete: SetNull` on three optional relations). The client stays on the default `@prisma/client` path. There is still no seed.
+- **Schema deltas from the plan.** `packages/db/README.md` lists the seven differences kept from PR #2 (`User.mode` optional, `SweatTest.movedFrom`, `PostWorkoutLog.ladderEligible`, `Workout.stageId`, `FoodItem.sodiumMgPer100g`, `Race.startAt`, and explicit `onDelete: SetNull` on three optional relations). The client stays on the default `@prisma/client` path.
+- **Seed is Ana only.** Bruno, Carla, Eli, and Dani are still not in the database. Computed fixture rows use `engineVersion = "fixture"`.
 - **Prisma 6.19, not 7 and not the 5.22 cited in the plan.** The schema still uses `url = env("DATABASE_URL")` inside the datasource block, which is the shape the plan's schema uses. Prisma 7 moves that URL out of the schema file. Prisma 8 is a release candidate. Stay on 6 until a schema PR chooses otherwise.
 - **TypeScript 5.9.** TypeScript 6 and 7 are published. `typescript-eslint` 8.71 does not accept TypeScript 7 (`<6.1`), so the repo is pinned to 5.9.
 - **Next.js 16, React 19, Express 5, Zod 4.** Current stable lines. Zod 4 is the validation library named in the plan.
@@ -90,4 +91,4 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 - **No Tailwind yet.** Tokens will land as CSS variables first. See `packages/design-tokens/README.md` and the extraction steps in `apps/web/README.md`.
 - **Board 4 of the design file is marked "earlier draft"** inside the gallery. The extraction notes treat it as non-canonical.
 
-Still open from the build plan, and not decided here: a centered 390px column on desktop versus new desktop layouts, and the proposed seed athletes.
+Still open from the build plan, and not decided here: a centered 390px column on desktop versus new desktop layouts, and the other proposed seed athletes.

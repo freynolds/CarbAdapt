@@ -1,0 +1,26 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: carbadapt-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: carbadapt
+      MYSQL_USER: carbadapt
+      MYSQL_PASSWORD: carbadapt
+      MYSQL_ROOT_PASSWORD: carbadapt
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - carbadapt_mysql:/var/lib/mysql
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/01-grants.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ucarabadapt", "-pcarbadapt"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  carbadapt_mysql:

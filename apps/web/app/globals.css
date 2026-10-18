@@ -1,0 +1,5 @@
+@import "@carbadapt/design-tokens/tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

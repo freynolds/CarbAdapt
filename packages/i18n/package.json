@@ -1,0 +1,16 @@
+{
+  "name": "@carbadapt/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

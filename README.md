@@ -64,6 +64,10 @@ Open the web placeholder at [http://127.0.0.1:3000](http://127.0.0.1:3000). The 
 
 `.env.example` matches the Compose defaults (`carbadapt` / `carbadapt` on database `carbadapt`). Those passwords are for this local database only. Compose reads `.env` for variable substitution. Prisma commands load the same file. Next.js does not: the root `.env` holds `DATABASE_URL`, which must not be bundled into the browser. The placeholder uses `http://127.0.0.1:4000` unless `apps/web/.env.local` sets `NEXT_PUBLIC_API_URL`.
 
+## Copy
+
+User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and the US form of every other word. Spanish and Portuguese are translated from that source. British spellings in `design/carbadapt-screens.html` are normalized to US English when strings are extracted. The catalog rules are in `packages/i18n/README.md`.
+
 ## Choices to confirm
 
 - **pnpm, without Turborepo.** The build plan names pnpm workspaces and Turborepo. pnpm is already the package manager in that plan, and it is stricter about which package can import what. Turborepo is left out until there is a task graph worth caching. `pnpm dev` runs the two processes with pnpm's own parallel filters.

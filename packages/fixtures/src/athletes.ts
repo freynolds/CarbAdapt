@@ -17,7 +17,7 @@ import {
 } from "./domain.js";
 import { DEMO_TIMEZONE } from "./clock.js";
 
-export const WEIGHT = { ana: 64, bruno: 70, carla: 68 };
+export const WEIGHT = { ana: 64, bruno: 70, carla: 68, eli: 60, dani: 72 };
 export const ANA_RACE_OFFSET = 42;
 export const ANA_ROAD_OFFSET = 12;
 
@@ -33,6 +33,8 @@ export function seedAthletes(bag: SeedData): void {
   seedAna(bag);
   seedBruno(bag);
   seedCarla(bag);
+  seedEli(bag);
+  seedDani(bag);
 }
 
 function seedAna(bag: SeedData): void {
@@ -1260,6 +1262,394 @@ function seedCarla(bag: SeedData): void {
       "Rest day inside the race. Overnight plan at the lowest band for a stage under 2.5 h: 5 g/kg.",
     ],
   });
+}
+
+function seedEli(bag: SeedData): void {
+  const clock = bag.clock;
+  const userId = "usr_eli";
+  bag.users.push({
+    id: userId,
+    email: "eli@demo.carbadapt.test",
+    name: "Eli",
+    locale: "EN_US",
+    theme: "SYSTEM",
+    timezone: DEMO_TIMEZONE,
+    mode: "FUEL_MY_WORKOUTS",
+    briefingTimeLocal: "19:00",
+    briefingDayBefore: false,
+  });
+  bag.subscriptions.push({ userId, status: "BETA_ALL_ACCESS" });
+  bag.identities.push({
+    id: "idn_eli_tp",
+    userId,
+    provider: "TRAININGPEAKS",
+    providerUserId: "tp_eli",
+    email: "eli@demo.carbadapt.test",
+  });
+  bag.physical.push({
+    userId,
+    weightKg: WEIGHT.eli,
+    ftpW: 250,
+    sweatRateLPerH: null,
+    sweatRateSource: null,
+    ghTolerance: 50,
+    maxHr: 186,
+    hrZones: ZONES,
+    age: 29,
+    sex: "female",
+    heightCm: 168,
+    fieldSources: { ftp: "MANUAL", weight: "MANUAL", hrZones: "MANUAL" },
+  });
+  bag.conflicts.push({
+    id: "cfl_eli_ftp",
+    userId,
+    field: "ftp",
+    manualValue: 250,
+    syncedValue: 270,
+    provider: "TRAININGPEAKS",
+    resolvedWith: null,
+    resolvedAt: null,
+  });
+  bag.connections.push(connection("con_eli_tp", userId, "TRAININGPEAKS", "REVOKED", clock));
+  bag.containers.push(
+    container("cnt_eli_blue", userId, "BOTTLE", "Blue bottle", "#2B3A55", 650, "WATER"),
+    container("cnt_eli_green", userId, "BOTTLE", "Green bottle", "#101A2B", 650, "WATER"),
+    container("cnt_eli_yellow", userId, "BOTTLE", "Yellow bottle", "#FF6A3D", 500, "ISOTONIC"),
+  );
+  bag.calibrations.push(
+    {
+      id: "cal_eli_green",
+      containerId: "cnt_eli_green",
+      weightsG: [650, 632, 614, 596],
+      mlPerSip: 18,
+      gPerSqueeze: null,
+      validationsLeft: 2,
+    },
+    {
+      id: "cal_eli_yellow",
+      containerId: "cnt_eli_yellow",
+      weightsG: [500, 485, 470, 455],
+      mlPerSip: 15,
+      gPerSqueeze: null,
+      validationsLeft: 0,
+    },
+  );
+  bag.products.push(product("prd_eli_gel", userId, "GEL", "Demo Gel", 40, null, 22, 40, 0, true));
+
+  bag.races.push(
+    race(
+      "race_eli_half",
+      userId,
+      "City Half Marathon",
+      20,
+      clock.at(20, 8, 30),
+      100,
+      "half_marathon",
+      21.1,
+      120,
+      "NONE",
+      false,
+      clock,
+    ),
+    race(
+      "race_eli_25",
+      userId,
+      "Regional 25 km",
+      27,
+      clock.at(27, 9, 0),
+      120,
+      "road_race",
+      25,
+      180,
+      "TWO_DAY",
+      false,
+      clock,
+    ),
+  );
+  addLoadingDay(bag, {
+    id: "ld_eli_d2",
+    raceId: "race_eli_25",
+    day: "D_MINUS_2",
+    dayOffset: 25,
+    gPerKg: 5,
+    weightKg: WEIGHT.eli,
+    guidance: ["90 min to 2.5 h band, low end: D-2 is 5 g/kg."],
+  });
+  addLoadingDay(bag, {
+    id: "ld_eli_d1",
+    raceId: "race_eli_25",
+    day: "D_MINUS_1",
+    dayOffset: 26,
+    gPerKg: 7,
+    weightKg: WEIGHT.eli,
+    guidance: ["90 min to 2.5 h band, low end: D-1 is 7 g/kg."],
+  });
+
+  bag.gutPlans.push({
+    id: "gut_eli",
+    userId,
+    targetKind: "DATE",
+    raceId: null,
+    targetDate: clock.day(56),
+    startGh: 50,
+    goalGh: 70,
+    defaultGh: 70,
+    tooFast: false,
+    status: "ACTIVE",
+    engineVersion: ENGINE_VERSION,
+  });
+  bag.steps.push(
+    step("stp_eli_0", "gut_eli", 0, 50, clock.day(-14), "DONE"),
+    step("stp_eli_1", "gut_eli", 1, 60, clock.day(0), "CURRENT"),
+    step("stp_eli_2", "gut_eli", 2, 70, clock.day(21), "UPCOMING"),
+  );
+
+  bag.workouts.push(
+    {
+      id: "wrk_eli_today",
+      userId,
+      source: "MANUAL",
+      externalId: null,
+      sport: "RUNNING",
+      kind: "STANDARD",
+      workoutType: "BASE",
+      name: "Easy run",
+      plannedStart: clock.at(0, 7, 30),
+      plannedDate: clock.day(0),
+      durationMin: 70,
+      structure: null,
+      status: "PLANNED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    },
+    {
+      id: "wrk_eli_feedback",
+      userId,
+      source: "STRAVA",
+      externalId: "wrk_eli_feedback",
+      sport: "RUNNING",
+      kind: "STANDARD",
+      workoutType: "BASE",
+      name: "Yesterday's run",
+      plannedStart: clock.at(-1, 7, 0),
+      plannedDate: clock.day(-1),
+      durationMin: 50,
+      structure: null,
+      status: "COMPLETED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    },
+    {
+      id: "wrk_eli_intake",
+      userId,
+      source: "STRAVA",
+      externalId: "wrk_eli_intake",
+      sport: "RUNNING",
+      kind: "STANDARD",
+      workoutType: "BASE",
+      name: "Add intake",
+      plannedStart: clock.at(-3, 7, 0),
+      plannedDate: clock.day(-3),
+      durationMin: 80,
+      structure: null,
+      status: "COMPLETED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    },
+    {
+      id: "wrk_eli_sip",
+      userId,
+      source: "STRAVA",
+      externalId: "wrk_eli_sip",
+      sport: "RUNNING",
+      kind: "STANDARD",
+      workoutType: "RECOVERY",
+      name: "Sip check",
+      plannedStart: clock.at(-6, 7, 30),
+      plannedDate: clock.day(-6),
+      durationMin: 40,
+      structure: null,
+      status: "COMPLETED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    },
+    {
+      id: "wrk_eli_sweat",
+      userId,
+      source: "MANUAL",
+      externalId: null,
+      sport: "RUNNING",
+      kind: "SWEAT_TEST",
+      workoutType: "BASE",
+      name: "Sweat test",
+      plannedStart: clock.at(-1, 18, 0),
+      plannedDate: clock.day(-1),
+      durationMin: 60,
+      structure: null,
+      status: "COMPLETED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    },
+  );
+  activity(bag, "act_eli_feedback", userId, "wrk_eli_feedback", -1, 50, null);
+  activity(bag, "act_eli_intake", userId, "wrk_eli_intake", -3, 80, null);
+  activity(bag, "act_eli_sip", userId, "wrk_eli_sip", -6, 40, null);
+  addFueling(bag, {
+    id: "fp_eli_today",
+    workoutId: "wrk_eli_today",
+    durationMin: 70,
+    targetGPerH: fixtureFuelingGh(70),
+    sweatLPerH: 0,
+    productId: "prd_eli_gel",
+    productName: "Demo Gel",
+    carbsPerServing: 22,
+    sodiumPerServing: 40,
+  });
+  bag.logs.push({
+    id: "log_eli_sip",
+    workoutId: "wrk_eli_sip",
+    ...symptomLog("NONE", 20),
+    ladderEligible: false,
+    containerWeighIns: { calibrationId: "cal_eli_yellow", weightsG: [500, 482, 464] },
+    sipProposal: {
+      calibrationId: "cal_eli_yellow",
+      currentMlPerSip: 15,
+      proposedMlPerSip: 18,
+      status: "pending",
+    },
+    submittedAt: clock.at(-6, 9, 0),
+  });
+  bag.sweatTests.push({
+    id: "swt_eli",
+    userId,
+    workoutId: "wrk_eli_sweat",
+    status: "AWAITING_DATA",
+    scheduledFor: clock.day(-1),
+    movedFrom: null,
+    preWeightKg: 60,
+    postWeightKg: null,
+    fluidMl: 250,
+    urineMl: null,
+    startedAt: clock.at(-1, 18, 0),
+    endedAt: clock.at(-1, 19, 0),
+    temperatureC: 19,
+    humidityPct: 62,
+    sweatRateLPerH: null,
+  });
+  bag.todos.push(
+    todo("todo_eli_cal", userId, "SIP_CALIBRATION", "CALIBRATION", "Container", "cnt_eli_blue"),
+    todo(
+      "todo_eli_val",
+      userId,
+      "SIP_VALIDATION",
+      "CALIBRATION",
+      "ContainerCalibration",
+      "cal_eli_green",
+    ),
+    todo(
+      "todo_eli_conflict",
+      userId,
+      "DATA_CONFLICT",
+      "HIGHEST",
+      "PhysicalDataConflict",
+      "cfl_eli_ftp",
+    ),
+    todo(
+      "todo_eli_feedback",
+      userId,
+      "LAST_SESSION_FEEDBACK",
+      "HIGHEST",
+      "Workout",
+      "wrk_eli_feedback",
+    ),
+  );
+}
+
+function seedDani(bag: SeedData): void {
+  const clock = bag.clock;
+  const userId = "usr_dani";
+  bag.users.push({
+    id: userId,
+    email: "dani@demo.carbadapt.test",
+    name: "Dani",
+    locale: "EN_US",
+    theme: "SYSTEM",
+    timezone: DEMO_TIMEZONE,
+    mode: null,
+    briefingTimeLocal: null,
+    briefingDayBefore: true,
+  });
+  bag.subscriptions.push({ userId, status: "BETA_ALL_ACCESS" });
+  bag.physical.push({
+    userId,
+    weightKg: WEIGHT.dani,
+    ftpW: null,
+    sweatRateLPerH: null,
+    sweatRateSource: null,
+    ghTolerance: null,
+    maxHr: null,
+    hrZones: null,
+    age: null,
+    sex: null,
+    heightCm: null,
+    fieldSources: { weight: "MANUAL" },
+  });
+  bag.onboarding.push({
+    id: "onb_dani",
+    userId,
+    anonId: "anon_dani",
+    answers: { sport: "cycling", experience: "new", goal: "learn fueling" },
+  });
+  bag.products.push(
+    product("prd_dani_gel", userId, "GEL", "Demo Gel", 40, null, 22, 40, 0, false),
+    product("prd_dani_drink", userId, "DRINK_MIX", "Demo Drink Mix", 30, 30, 30, 200, 0, true),
+    product("prd_dani_bar", userId, "SOLID", "Demo Bar", 40, null, 25, 50, 0, false),
+  );
+  const recent = [
+    [-2, 90],
+    [-5, 120],
+    [-9, 75],
+    [-12, 150],
+    [-16, 45],
+  ] as const;
+  for (const [offset, duration] of recent) {
+    const id = `wrk_dani_${offset}`;
+    bag.workouts.push({
+      id,
+      userId,
+      source: "STRAVA",
+      externalId: id,
+      sport: "CYCLING",
+      kind: "STANDARD",
+      workoutType: "BASE",
+      name: "Recent ride",
+      plannedStart: clock.at(offset, 18, 0),
+      plannedDate: clock.day(offset),
+      durationMin: duration,
+      structure: null,
+      status: "COMPLETED",
+      stageId: null,
+      sourceUpdatedAt: null,
+    });
+    activity(
+      bag,
+      `act_${id}`,
+      userId,
+      id,
+      offset,
+      duration,
+      { note: "Fixture platform workout for Estimate my g/h. Dani has no live connection." },
+      18,
+    );
+  }
+  bag.todos.push(
+    todo("todo_dani_profile", userId, "COMPLETE_PROFILE", "LOWER", "PhysicalData", userId),
+    todo("todo_dani_calendar", userId, "CONNECT_CALENDAR", "LOWER", null, null),
+    todo("todo_dani_bottle", userId, "ADD_BOTTLE", "LOWER", null, null),
+    todo("todo_dani_race", userId, "ADD_RACE", "LOWER", null, null),
+    todo("todo_dani_estimate", userId, "ESTIMATE_GH", "HIGHEST", null, null),
+    todo("todo_dani_sweat", userId, "SWEAT_TEST", "CALIBRATION", null, null),
+  );
 }
 
 function fuel(

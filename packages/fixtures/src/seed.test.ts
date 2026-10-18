@@ -65,7 +65,7 @@ describe("Ana", () => {
   it("is a gut-training road cyclist", () => {
     assert.deepEqual(
       seed.users.map((row) => row.name),
-      ["Ana", "Bruno", "Carla"],
+      ["Ana", "Bruno", "Carla", "Eli", "Dani"],
     );
     const ana = seed.users.find((row) => row.id === "usr_ana");
     assert.equal(ana?.mode, "GUT_TRAINING");
@@ -225,6 +225,77 @@ describe("Carla", () => {
     assert.equal(
       recoveries.every((row) => row.engineVersion === "fixture"),
       true,
+    );
+  });
+});
+
+describe("Eli", () => {
+  const seed = buildSeed(NOW);
+
+  it("keeps the conflict, calibration, and loading bands", () => {
+    const eli = seed.users.find((row) => row.id === "usr_eli");
+    assert.equal(eli?.mode, "FUEL_MY_WORKOUTS");
+    assert.equal(seed.sweatTests.find((row) => row.id === "swt_eli")?.status, "AWAITING_DATA");
+    assert.equal(seed.sweatTests.find((row) => row.id === "swt_eli")?.postWeightKg, null);
+    assert.equal(seed.races.find((row) => row.id === "race_eli_half")?.carbLoading, "NONE");
+    const days = seed.loadingDays.filter((row) => row.raceId === "race_eli_25");
+    assert.deepEqual(
+      days.map((row) => row.targetCarbsG).sort((a, b) => Number(a) - Number(b)),
+      [300, 420],
+    );
+    assert.equal(seed.conflicts[0]?.resolvedAt, null);
+    assert.equal(
+      seed.calibrations.find((row) => row.containerId === "cnt_eli_blue"),
+      undefined,
+    );
+    assert.equal(seed.calibrations.find((row) => row.id === "cal_eli_green")?.validationsLeft, 2);
+    assert.equal(seed.gutPlans.find((row) => row.id === "gut_eli")?.targetKind, "DATE");
+    assert.equal(seed.gutPlans.find((row) => row.id === "gut_eli")?.status, "ACTIVE");
+    const proposal = seed.logs.find((row) => row.id === "log_eli_sip")?.sipProposal as {
+      status: string;
+    };
+    assert.equal(proposal.status, "pending");
+    assert.equal(seed.connections.find((row) => row.userId === "usr_eli")?.status, "REVOKED");
+  });
+});
+
+describe("Dani", () => {
+  const seed = buildSeed(NOW);
+
+  it("stays in the empty first step with estimate workouts", () => {
+    const dani = seed.users.find((row) => row.id === "usr_dani");
+    assert.equal(dani?.mode, null);
+    assert.equal(seed.workouts.filter((row) => row.userId === "usr_dani").length, 5);
+    assert.equal(seed.products.filter((row) => row.userId === "usr_dani").length, 3);
+    assert.equal(seed.containers.filter((row) => row.userId === "usr_dani").length, 0);
+    assert.equal(seed.connections.filter((row) => row.userId === "usr_dani").length, 0);
+    assert.equal(seed.onboarding.length, 1);
+    assert.equal(seed.achievements.filter((row) => row.userId === "usr_dani").length, 0);
+    assert.equal(seed.sweatTests.filter((row) => row.userId === "usr_dani").length, 0);
+  });
+});
+
+describe("coverage", () => {
+  const seed = buildSeed(NOW);
+
+  it("covers every to-do type", () => {
+    const types = new Set(seed.todos.map((row) => row.type));
+    assert.deepEqual(
+      [...types].sort(),
+      [
+        "ADD_BOTTLE",
+        "ADD_RACE",
+        "COMPLETE_PROFILE",
+        "CONNECT_CALENDAR",
+        "DATA_CONFLICT",
+        "ESTIMATE_GH",
+        "LAST_SESSION_FEEDBACK",
+        "LOADING_REHEARSAL",
+        "PRE_RACE_STRATEGY",
+        "SIP_CALIBRATION",
+        "SIP_VALIDATION",
+        "SWEAT_TEST",
+      ].sort(),
     );
   });
 });

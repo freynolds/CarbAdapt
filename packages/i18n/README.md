@@ -6,7 +6,7 @@ All user-visible copy, including the notification strings. English is the source
 
 Catalogs keyed by message id, for `en`, `es`, and `pt`. The web app and the API (notification rows store a `copyKey`) both read this package. English strings are copied from the design HTML, not rewritten in the component.
 
-`src/index.ts` only exports the locale codes so the boundary is visible. There is no catalog file yet.
+`src/messages.ts` holds every screen string for `en`, `es`, and `pt`. `translate(locale, id, vars)` looks a key up. `TRANSLATION_STATUS` marks `es` and `pt` as `draft` and `en` as `source`. `localeFromUser` maps `EN_US`, `ES`, and `PT` onto `en`, `es`, and `pt`.
 
 ## What must NOT go here
 
@@ -16,7 +16,7 @@ Catalogs keyed by message id, for `en`, `es`, and `pt`. The web app and the API 
 
 ## Milestone
 
-The pipeline (how a key is looked up, how a missing translation fails) is part of the rest of M0. Screen strings are filled while the M2 screens are extracted. Push copy is part of M4.
+Screen strings and the push copy from the handoff are in the catalog. A missing key fails typecheck because `MessageId` is the key union. Spanish and Portuguese are drafts of the English source.
 
 ## Copy convention
 

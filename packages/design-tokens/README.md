@@ -6,7 +6,7 @@ The brand values the web app, and later Swift, consume. One definition, then CSS
 
 Color, type, and radius tokens taken from `design/carbadapt-screens.html`. The in-app frames already name seven variables on the phone (`.p`) and override them for light mode (`.lt`): `--bg`, `--cd`, `--tx`, `--mu`, `--ac`, `--ib`, `--ln`. Button glucose, the alert orange, and the workout-type chips are raw hex in the HTML and belong here too. The full table is in `apps/web/README.md`.
 
-`src/index.ts` points at the source file and does not duplicate those values. Copying them now would freeze a token set before the extraction PR.
+`src/tokens.css` is the CSS the web app imports. `src/index.ts` exports the same brand, surface, chip, symptom, radius, and column values for non-CSS callers. Glucose buttons stay `#C6F135` with an ink label in both themes. `--ac` flips to ink in light mode.
 
 ## What must NOT go here
 
@@ -16,6 +16,4 @@ Color, type, and radius tokens taken from `design/carbadapt-screens.html`. The i
 
 ## Milestone
 
-The rest of M0, before M2 builds screens. The web placeholder uses its own `--scaffold-*` variables so this package stays empty until that extraction.
-
-Tailwind is not installed. The build plan allows a Tailwind preset as the CSS output; CSS variables are enough until a screen PR needs utilities.
+Tokens are in use by `apps/web`. Tailwind is not installed. CSS variables are the output.

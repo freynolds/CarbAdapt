@@ -22,12 +22,14 @@
     "db:generate": "npm run generate -w @carbadapt/db",
     "db:validate": "npm run validate -w @carbadapt/db",
     "db:migrate": "npm run migrate -w @carbadapt/db",
+    "db:seed": "npm run seed -w @carbadapt/db",
+    "db:reset": "npm run reset -w @carbadapt/db",
     "postinstall": "npm run db:generate",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test -w @carbadapt/api"
+    "test": "npm run test --workspaces --if-present"
   },
   "prettier": "./packages/config/prettier.json",
   "devDependencies": {

@@ -7,15 +7,22 @@
     "generate": "node ./scripts/run-prisma.mjs generate",
     "validate": "node ./scripts/run-prisma.mjs validate",
     "migrate": "node ./scripts/run-prisma.mjs migrate dev",
+    "seed": "node --import tsx prisma/seed.ts",
+    "reset": "node ./scripts/run-prisma.mjs migrate reset --force",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@carbadapt/fixtures": "*",
     "@prisma/client": "~6.19.2"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
     "dotenv": "^17.2.0",
     "prisma": "~6.19.2",
+    "tsx": "^4.20.0",
     "typescript": "~5.9.3"
+  },
+  "prisma": {
+    "seed": "node --import tsx prisma/seed.ts"
   }
 }

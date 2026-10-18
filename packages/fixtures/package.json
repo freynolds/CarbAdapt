@@ -7,9 +7,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "test": "node --import tsx --test src/seed.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.0",
     "typescript": "~5.9.3"
   }
 }

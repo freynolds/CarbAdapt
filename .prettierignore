@@ -1,0 +1,8 @@
+node_modules
+.pnpm-store
+.next
+apps/web/next-env.d.ts
+dist
+pnpm-lock.yaml
+design/carbadapt-screens.html
+*.tsbuildinfo

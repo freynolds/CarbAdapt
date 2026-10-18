@@ -1,0 +1,6 @@
+{
+  "name": "@carbadapt/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript and Prettier settings for the CarbAdapt monorepo."
+}

@@ -1,0 +1,35 @@
+{
+  "name": "carbadapt",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CarbAdapt monorepo: endurance fueling and gut training.",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @carbadapt/web --filter @carbadapt/api dev",
+    "dev:web": "pnpm --filter @carbadapt/web dev",
+    "dev:api": "pnpm --filter @carbadapt/api dev",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f mysql",
+    "db:generate": "pnpm --filter @carbadapt/db generate",
+    "db:validate": "pnpm --filter @carbadapt/db validate",
+    "postinstall": "pnpm db:generate",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm --filter @carbadapt/api test"
+  },
+  "prettier": "./packages/config/prettier.json",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.19.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.2"
+  }
+}

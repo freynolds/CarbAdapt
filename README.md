@@ -2,7 +2,7 @@
 
 CarbAdapt is an app for endurance fueling and gut training. This repository is the MVP: a Next.js web app and a separate Node API first, with iOS and Garmin Connect IQ later. Everything here runs on localhost. There is no deploy in this phase.
 
-The scaffold shows where each kind of code will live. The database schema, its first migration, and a seed for one demo athlete (Ana) are in `packages/db`. The mock API reads that MySQL data for the signed-in athlete. There is no product screen and no fueling engine yet.
+The scaffold shows where each kind of code will live. The database schema, its first migration, and a seed for the five demo athletes are in `packages/db`. The mock API reads that MySQL data for the signed-in athlete. There is no product screen and no fueling engine yet.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ apps/
 packages/
   config/         Base tsconfig and Prettier. ESLint flat config is the repo-root file.
   db/             Prisma schema, the first migration, the client export, and the seed.
-  fixtures/       Demo data for the seed. Ana and the USDA food sample.
+  fixtures/       Demo data for the seed. Five athletes and the USDA food sample.
   engine/         Pure calc functions. Empty until M3.
   contracts/      OpenAPI and generated clients. Empty until the mock API settles.
   integrations/   Strava, TrainingPeaks, Garmin adapters. Empty until M4.
@@ -83,7 +83,7 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 - **npm workspaces, without Turborepo.** The build plan names pnpm workspaces and Turborepo. This repo uses npm. The `workspaces` array is `apps/web`, `apps/api`, and `packages/*`. `apps/worker`, `apps/ios`, and `apps/garmin-ciq` stay out even if a `package.json` is added there later. Turborepo is left out until there is a task graph worth caching. `npm run dev` starts web and api together.
 - **Extra folders.** `packages/fixtures`, `packages/config`, and `docs/` are in the agreed layout and were not in the shortest step-1 list. Fixtures exist so demo data does not land in the API. Config holds the shared tsconfig and Prettier file.
 - **Schema deltas from the plan.** `packages/db/README.md` lists the seven differences kept from PR #2 (`User.mode` optional, `SweatTest.movedFrom`, `PostWorkoutLog.ladderEligible`, `Workout.stageId`, `FoodItem.sodiumMgPer100g`, `Race.startAt`, and explicit `onDelete: SetNull` on three optional relations). The client stays on the default `@prisma/client` path.
-- **Seed is Ana only.** Bruno, Carla, Eli, and Dani are still not in the database. Computed fixture rows use `engineVersion = "fixture"`.
+- **Seed matches the five demo athletes from PR #2.** Computed fixture rows use `engineVersion = "fixture"`.
 - **Prisma 6.19, not 7 and not the 5.22 cited in the plan.** The schema still uses `url = env("DATABASE_URL")` inside the datasource block, which is the shape the plan's schema uses. Prisma 7 moves that URL out of the schema file. Prisma 8 is a release candidate. Stay on 6 until a schema PR chooses otherwise.
 - **TypeScript 5.9.** TypeScript 6 and 7 are published. `typescript-eslint` 8.71 does not accept TypeScript 7 (`<6.1`), so the repo is pinned to 5.9.
 - **Next.js 16, React 19, Express 5, Zod 4.** Current stable lines. Zod 4 is the validation library named in the plan.
@@ -97,4 +97,4 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 - **Food responses omit USDA precision.** That flag lives only in `packages/fixtures`. The API does not import fixture stories on the read path.
 - **Race breakfast is a mock derivation** in the carb-loading module (1.5 g/kg before 08:00 local, otherwise 2 g/kg, 5 ml/kg of the demo isotonic). It is not stored and it is not the M3 engine.
 
-Still open from the build plan, and not decided here: a centered 390px column on desktop versus new desktop layouts, and the other proposed seed athletes.
+Still open from the build plan, and not decided here: a centered 390px column on desktop versus new desktop layouts.

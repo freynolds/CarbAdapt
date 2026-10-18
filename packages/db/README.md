@@ -20,7 +20,7 @@ Prisma schema, the generated client, and migrations. MySQL 8.4 runs in Docker fr
 
 ## Schema compared with the build plan
 
-The plan's §3 schema is the base. [PR #2](https://github.com/freynolds/CarbAdapt/pull/2) added or relaxed these fields so the approved seed cases fit. This step keeps those changes. The seed currently inserts Ana only.
+The plan's §3 schema is the base. [PR #2](https://github.com/freynolds/CarbAdapt/pull/2) added or relaxed these fields so the approved seed cases fit. This step keeps those changes. The seed inserts Ana, Bruno, Carla, Eli, and Dani.
 
 1. `User.mode` is optional and has no default. The plan defaulted it to `FUEL_MY_WORKOUTS`. An athlete who has not chosen a mode needs the null.
 2. `SweatTest.movedFrom` stores the calendar date a test was moved off a loading day.
@@ -42,5 +42,5 @@ PR #2 used Prisma 5.22 and generated the client into `packages/db/src/generated/
 | --------- | -------------------------------------------- |
 | Step 1    | Datasource, generator, client export         |
 | Step 2    | Models and the first migration               |
-| This step | Seed and reset. Ana and the USDA food sample |
-| Later     | The other demo athletes                      |
+| Step 3    | Seed and reset. Ana and the USDA food sample |
+| This step | Bruno, Carla, Eli, and Dani                  |

@@ -13,7 +13,7 @@ Next.js App Router UI. It renders screens and calls `apps/api`. It does not own 
 | `lib/`        | `api.ts` fetches and maps `HttpErrorCode` through `HTTP_ERROR_MESSAGE`. `parse.ts` checks responses with the contract schemas. |
 | `app/fonts/`  | Self-hosted woff2 files. Latin subsets are loaded with `next/font/local`. `OFL.txt` is the license.                            |
 
-`next.config.ts` stays UI-only. Do not add route handlers that stand in for `apps/api`.
+`next.config.ts` stays UI-only. Do not add route handlers that stand in for `apps/api`. `next dev` uses webpack so the `.js` import suffixes inside `packages/contracts` and `packages/i18n` resolve to the TypeScript sources. Turbopack does not apply that alias.
 
 Next writes `next-env.d.ts` on `next dev` and on `next typegen`. That file is gitignored. In Next 16 the two commands point it at different generated type paths, so committing it would leave a permanent diff. `npm run typecheck` runs `next typegen` before `tsc`.
 

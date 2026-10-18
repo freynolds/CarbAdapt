@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
 import { BigStats, ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
-import { formatDay, formatNumber } from "@/lib/format";
+import { formatClock, formatDay, formatDuration, formatNumber } from "@/lib/format";
 import { asArray, asRecord, asString, intakesOf, mealsOf } from "@/lib/json";
 import {
   parseBreakfast,
@@ -19,7 +19,8 @@ const LOADING = ["NONE", "TWO_DAY", "ONE_DAY"] as const;
 const SPORTS = ["road", "gravel", "trail"] as const;
 
 export function RaceFormScreen({ id }: { id?: string }) {
-  const { token, t } = useApp();
+  const { token, t, locale, me } = useApp();
+  const zone = me?.user.timezone ?? "UTC";
   const existing = useGet(token && id ? `/races/${id}` : null, parseRace);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
@@ -28,11 +29,33 @@ export function RaceFormScreen({ id }: { id?: string }) {
   const [elevation, setElevation] = useState("");
   const [sport, setSport] = useState<(typeof SPORTS)[number]>("road");
   const [loading, setLoading] = useState<(typeof LOADING)[number]>("NONE");
-  const [multi, setMulti] = useState(false);
+  const [multi, setMulti] = useState<boolean | null>(null);
   const [stages, setStages] = useState([{ name: "1", date: "", start: "07:00", duration: "3:30" }]);
   const [aids, setAids] = useState([{ km: "32", water: true, iso: true, gels: false }]);
   const [editingAid, setEditingAid] = useState<number | null>(null);
   const row = existing.status === "ready" ? existing.data.race : null;
+  const showMulti = multi ?? Boolean(row?.isMultiStage);
+  if (!token) {
+    return (
+      <Screen title={t("race.add")} back="/home">
+        <NeedSignIn />
+      </Screen>
+    );
+  }
+  if (id && existing.status === "error") {
+    return (
+      <Screen title={t("race.edit")} back="/home">
+        <ErrorText code={existing.code} />
+      </Screen>
+    );
+  }
+  if (id && existing.status !== "ready") {
+    return (
+      <Screen title={t("race.edit")} back="/home">
+        <LoadingText />
+      </Screen>
+    );
+  }
   return (
     <Screen kicker={t("cal.race")} title={id ? t("race.edit") : t("race.add")} back="/home">
       <Preview />
@@ -40,7 +63,7 @@ export function RaceFormScreen({ id }: { id?: string }) {
         <span>{t("race.name")}</span>
         <input value={name || row?.name || ""} onChange={(event) => setName(event.target.value)} />
       </label>
-      {!multi ? (
+      {!showMulti ? (
         <>
           <label className="field">
             <span>{t("man.date")}</span>
@@ -97,20 +120,20 @@ export function RaceFormScreen({ id }: { id?: string }) {
       </div>
       <button
         type="button"
-        className={multi || row?.isMultiStage ? "choice sel" : "choice"}
-        onClick={() => setMulti((value) => !value)}
+        className={showMulti ? "choice sel" : "choice"}
+        onClick={() => setMulti(!showMulti)}
       >
-        {t("race.multi")} {multi || row?.isMultiStage ? "✓" : ""}
+        {t("race.multi")} {showMulti ? "✓" : ""}
       </button>
-      {multi || row?.isMultiStage ? (
+      {showMulti ? (
         <>
           <p className="ey">{t("race.stages")}</p>
           {(row?.stages.length
             ? row.stages.map((stage) => ({
                 name: String(stage.index + 1),
                 date: stage.date ?? "",
-                start: stage.startAt ?? "",
-                duration: String(stage.estimatedDurationMin),
+                start: formatClock(stage.startAt, locale, zone),
+                duration: formatDuration(stage.estimatedDurationMin),
               }))
             : stages
           ).map((stage, index) => (

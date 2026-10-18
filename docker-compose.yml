@@ -1,0 +1,37 @@
+name: carbadapt
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: carbadapt-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-carbadapt}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-carbadapt}
+      MYSQL_USER: ${MYSQL_USER:-carbadapt}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-carbadapt}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - carbadapt_mysql:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-uroot",
+          "-p${MYSQL_ROOT_PASSWORD:-carbadapt}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  carbadapt_mysql:

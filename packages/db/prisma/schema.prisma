@@ -1,0 +1,13 @@
+// CarbAdapt database.
+// Step 1 is the datasource and the generator only.
+// Models, migrations, and the seed are later milestones. Do not put fueling
+// rules or fixture rows in this file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}

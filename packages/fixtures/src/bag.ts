@@ -124,34 +124,7 @@ export function addFueling(
         ? "GUT_TRAINING"
         : "FUEL_MY_WORKOUTS";
   const sport = (typeof workout?.sport === "string" ? workout.sport : "CYCLING") as EngineSport;
-  const products: FuelProduct[] = bag.products.flatMap((row) => {
-    if (row.userId !== userId || row.deletedAt != null) return [];
-    const type = row.type;
-    if (type !== "DRINK_MIX" && type !== "GEL" && type !== "SOLID") return [];
-    return [
-      {
-        id: String(row.id),
-        type,
-        name: String(row.name),
-        carbsG: Number(row.carbsG),
-        sodiumMg: row.sodiumMg == null ? null : Number(row.sodiumMg),
-        scoopG: row.scoopG == null ? null : Number(row.scoopG),
-      },
-    ];
-  });
-  const containers: FuelContainer[] = bag.containers.flatMap((row) => {
-    if (row.userId !== userId) return [];
-    const usual = row.usualContent;
-    if (usual !== "WATER" && usual !== "ISOTONIC" && usual !== "GEL_CONCENTRATE") return [];
-    return [
-      {
-        id: String(row.id),
-        name: String(row.name),
-        capacityMl: Number(row.capacityMl),
-        usualContent: usual,
-      },
-    ];
-  });
+  const { products, containers } = athleteGear(bag, userId);
   const planned = fuelingPlan({
     durationMin: input.durationMin,
     sport,
@@ -199,6 +172,72 @@ export function addFueling(
       drinkMixGPerMl: planned.drinkMixGPerMl,
     },
   });
+}
+
+const CONTENT_ORDER = { WATER: 0, ISOTONIC: 1, GEL_CONCENTRATE: 2 } as const;
+
+/** Favorites come first so the engine packs the athlete's chosen product of each type. */
+function athleteGear(bag: SeedData, userId: string): { products: FuelProduct[]; containers: FuelContainer[] } {
+  const products: FuelProduct[] = bag.products
+    .filter((row) => row.userId === userId && row.deletedAt == null)
+    .sort((left, right) => Number(right.favorite === true) - Number(left.favorite === true))
+    .flatMap((row) => {
+      const type = row.type;
+      if (type !== "DRINK_MIX" && type !== "GEL" && type !== "SOLID") return [];
+      return [
+        {
+          id: String(row.id),
+          type,
+          name: String(row.name),
+          carbsG: Number(row.carbsG),
+          sodiumMg: row.sodiumMg == null ? null : Number(row.sodiumMg),
+          scoopG: row.scoopG == null ? null : Number(row.scoopG),
+        },
+      ];
+    });
+  const containers: FuelContainer[] = bag.containers.flatMap((row) => {
+    if (row.userId !== userId) return [];
+    const usual = row.usualContent;
+    if (usual !== "WATER" && usual !== "ISOTONIC" && usual !== "GEL_CONCENTRATE") return [];
+    return [
+      {
+        id: String(row.id),
+        name: String(row.name),
+        capacityMl: Number(row.capacityMl),
+        usualContent: usual,
+      },
+    ];
+  });
+  containers.sort((left, right) => CONTENT_ORDER[left.usualContent] - CONTENT_ORDER[right.usualContent]);
+  return { products, containers };
+}
+
+/** Race strategy is fuel mode. A single g/h inside the band stays unset. */
+export function raceStrategyCarry(
+  bag: SeedData,
+  userId: string,
+  input: { durationMin: number; sport: EngineSport; sweatLPerH: number | null },
+) {
+  const { products, containers } = athleteGear(bag, userId);
+  const planned = fuelingPlan({
+    durationMin: input.durationMin,
+    sport: input.sport,
+    mode: "FUEL_MY_WORKOUTS",
+    currentStepGh: null,
+    chosenGPerH: null,
+    sweatRateLPerH: input.sweatLPerH,
+    products,
+    containers,
+  });
+  return {
+    items: planned.items,
+    carbStatus: planned.carbStatus,
+    fluidStatus: planned.fluidStatus,
+    sodiumStatus: planned.sodiumStatus,
+    scheduleStatus: planned.scheduleStatus,
+    targetBandGPerH: planned.band,
+    drinkMixGPerMl: planned.drinkMixGPerMl,
+  };
 }
 
 export function loadingMeals(totalCarbsG: number, guidance: string[]) {

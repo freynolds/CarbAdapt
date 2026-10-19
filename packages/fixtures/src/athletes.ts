@@ -3,6 +3,7 @@ import {
   addFueling,
   addLoadingDay,
   addRecovery,
+  raceStrategyCarry,
   symptomLog,
   type SeedData,
 } from "./bag.js";
@@ -200,13 +201,11 @@ function seedAna(bag: SeedData): void {
       chosen: false,
       refillPoints: { km: plan[1] },
       description: plan[0],
-      carryList: {
-        note: "Hand-made option. None is chosen. Needs for a 5 h race at the current step exceed the three containers.",
-        items: [
-          { productId: "prd_ana_iso", name: "Demo Isotonic Mix" },
-          { productId: "prd_ana_gel", name: "Demo Gel" },
-        ],
-      },
+      carryList: raceStrategyCarry(bag, userId, {
+        durationMin: 300,
+        sport: "CYCLING",
+        sweatLPerH: oldSweat,
+      }),
     });
   }
   const loadingGuidance = [
@@ -787,7 +786,11 @@ function seedBruno(bag: SeedData): void {
     refillPoints: { km: [12] },
     description:
       "One plan only, so the screen has no carousel. Refill the flask at the mid-stage aid station.",
-    carryList: { items: [{ productId: "prd_bruno_gel", name: "Demo Gel", servings: 4 }] },
+    carryList: raceStrategyCarry(bag, userId, {
+      durationMin: 120 + 300 + 180 + 120,
+      sport: "TRAIL_RUNNING",
+      sweatLPerH: sweat,
+    }),
   });
 
   const run = (

@@ -62,6 +62,12 @@ export type FuelContainer = {
   usualContent: "WATER" | "ISOTONIC" | "GEL_CONCENTRATE";
 };
 
+const CONTENT_ORDER: Record<FuelContainer["usualContent"], number> = {
+  WATER: 0,
+  ISOTONIC: 1,
+  GEL_CONCENTRATE: 2,
+};
+
 export type CarryRole = "water" | "drink_mix" | "gel" | "solid" | "unassigned";
 
 export type CarryItem = {
@@ -174,6 +180,9 @@ function buildCarry(input: {
   totalCarbsG: number;
   totalFluidMl: number;
 }): { items: CarryItem[]; sodium: number; sodiumKnown: boolean; drinkMixGPerMl: number | null } {
+  const containers = [...input.containers].sort(
+    (left, right) => CONTENT_ORDER[left.usualContent] - CONTENT_ORDER[right.usualContent],
+  );
   const drink = productOf(input.products, "DRINK_MIX");
   const gel = productOf(input.products, "GEL");
   const solid = productOf(input.products, "SOLID");
@@ -187,7 +196,7 @@ function buildCarry(input: {
   const fluidById = new Map<string, number>();
   let fluidLeft = fluidKnown ? input.totalFluidMl : 0;
   if (fluidKnown) {
-    for (const container of input.containers) {
+    for (const container of containers) {
       if (container.usualContent === "GEL_CONCENTRATE") continue;
       const take = Math.min(container.capacityMl, Math.max(0, fluidLeft));
       fluidById.set(container.id, take);
@@ -198,7 +207,7 @@ function buildCarry(input: {
   let carbsLeft = carbKnown ? input.totalCarbsG : 0;
   const gutCarbsById = new Map<string, number>();
   if (gutMix && drink) {
-    for (const container of input.containers) {
+    for (const container of containers) {
       if (container.usualContent !== "ISOTONIC") continue;
       const fluid = fluidById.get(container.id) ?? 0;
       const room = roundInt(GUT_DRINK_G_PER_ML * fluid);
@@ -210,7 +219,7 @@ function buildCarry(input: {
 
   const items: CarryItem[] = [];
   let gelUsed = false;
-  for (const container of input.containers) {
+  for (const container of containers) {
     const volumeMl = container.capacityMl;
     const held = fluidKnown ? (fluidById.get(container.id) ?? 0) : null;
     if (container.usualContent === "WATER") {

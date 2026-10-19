@@ -64,7 +64,7 @@ export async function writeFuelingPlan(
     currentStepGh: raceDay ? null : ctx.currentGh,
     chosenGPerH,
     sweatRateLPerH: ctx.user.physical?.sweatRateLPerH == null ? null : Number(ctx.user.physical.sweatRateLPerH),
-    products: ctx.products.map(productFuel),
+    products: favoriteFirst(ctx.products).map(productFuel),
     containers: ctx.containers.map((container) => ({
       id: container.id,
       name: container.name,
@@ -123,7 +123,7 @@ export async function raceCarryList(
     chosenGPerH: null,
     sweatRateLPerH:
       ctx.user.physical?.sweatRateLPerH == null ? null : Number(ctx.user.physical.sweatRateLPerH),
-    products: ctx.products.map(productFuel),
+    products: favoriteFirst(ctx.products).map(productFuel),
     containers: ctx.containers.map((container) => ({
       id: container.id,
       name: container.name,
@@ -131,6 +131,10 @@ export async function raceCarryList(
       usualContent: container.usualContent,
     })),
   });
+}
+
+function favoriteFirst<T extends { favorite: boolean }>(rows: T[]): T[] {
+  return [...rows].sort((left, right) => Number(right.favorite) - Number(left.favorite));
 }
 
 export async function saveNotification(db: Db, userId: string, draft: NotificationDraft) {

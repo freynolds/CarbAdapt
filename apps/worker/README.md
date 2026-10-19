@@ -1,10 +1,12 @@
-# apps/worker
+# @carbadapt/worker
 
-Long-running job process. Not an npm workspace member. The root `workspaces` array lists `apps/web`, `apps/api`, and `packages/*`, so this folder stays out even after a `package.json` is added.
+Long-running job process. It is an npm workspace. `npm run dev` starts it with the web app and the API.
 
 ## What goes here
 
-The BullMQ (or MySQL-polled) runner that syncs providers, processes webhooks, and sends scheduled notifications. It reads and writes through `packages/db` and calls `packages/engine` and `packages/integrations`. It is not an HTTP server.
+A MySQL poll of the `Job` table. Due rows deliver in-app notifications (the mock logs the copy key) and apply webhook imports. It calls `runDueJobs` from `@carbadapt/api/runner`. It is not an HTTP server. `POST /dev/jobs/tick` runs the same function once.
+
+`WORKER_POLL_MS` is how often the process asks MySQL. Empty uses 5000. That interval is an operations knob, not a product push time.
 
 ## What must NOT go here
 
@@ -12,6 +14,10 @@ The BullMQ (or MySQL-polled) runner that syncs providers, processes webhooks, an
 - Screen rendering.
 - Fueling formulas copied out of `packages/engine`.
 
-## Milestone
+## Local
 
-M4. The mock phase does not run Redis, a queue, or this process. Do not add it to `docker-compose.yml` before then.
+```bash
+npm run dev -w @carbadapt/worker
+```
+
+The process needs `DATABASE_URL` and a migrated database, including the `Job` table.

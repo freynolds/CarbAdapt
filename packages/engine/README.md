@@ -13,6 +13,6 @@ One module per rule set from the build plan: `fueling`, `ladder`, `adaptation`, 
 - React components or copy catalogs.
 - Provider-specific payload shapes (`packages/integrations`).
 
-## Milestone
+## Status
 
-M3. Until then, fueling plans, ladders, loading days, and recovery plans are hand-made rows with `engineVersion = "fixture"`. Do not start the formulas in this package before the mock screens exist, unless a PR is explicitly the engine milestone.
+The pure functions and `src/engine.test.ts` are in place. Seeded fixture rows still use `engineVersion = "fixture"`. Rows written by the API use `ENGINE_VERSION` from `src/version.ts`. Anything the product docs do not specify is a `TBD` null in `src/tbd.ts`, and the caller shows "not set".

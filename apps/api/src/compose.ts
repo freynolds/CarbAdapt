@@ -36,6 +36,7 @@ import { createSweatTestsRouter } from "./modules/sweat-tests/sweat-tests.router
 import { createSweatTestsService } from "./modules/sweat-tests/sweat-tests.factory.js";
 import { createTodosRouter } from "./modules/todos/todos.router.js";
 import { createTodosService } from "./modules/todos/todos.factory.js";
+import { createRecordsRouter, createDevExtraRouter } from "./modules/records/records.router.js";
 import { createWorkoutsRouter } from "./modules/workouts/workouts.router.js";
 import { createWorkoutsService } from "./modules/workouts/workouts.factory.js";
 
@@ -69,6 +70,7 @@ export function composeApi(env: AppEnv, db: PrismaClient): Router {
   router.use(createHealthRouter());
   if (env === "mock") {
     router.use("/dev", createDevRouter(createDevService(env, deps)));
+    router.use("/dev", createDevExtraRouter(db));
   }
   router.use("/auth", createAuthRouter(createAuthService(env)));
   router.use("/me", createProfileRouter(profile, db));
@@ -87,5 +89,6 @@ export function composeApi(env: AppEnv, db: PrismaClient): Router {
   router.use("/connections", createConnectionsRouter(createConnectionsService(env, deps), db));
   router.use("/todos", createTodosRouter(todos, db));
   router.use(createHomeRouter(home, db));
+  router.use(createRecordsRouter(db));
   return router;
 }

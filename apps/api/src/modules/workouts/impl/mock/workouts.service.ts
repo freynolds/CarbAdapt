@@ -1,3 +1,4 @@
+import { createWorkout, deleteWorkout, updateWorkout } from "../../../../domain/commands.js";
 import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
 import { parseDay } from "../../../../http/calendar.js";
 import { presentWorkout, workoutInclude } from "../../../../http/present.js";
@@ -31,5 +32,8 @@ export function createMockWorkoutsService(deps: ModuleDeps): WorkoutsService {
       if (!row) throw new HttpError(HttpErrorCode.WorkoutNotFound);
       return { workout: presentWorkout(row) };
     },
+    createWorkout: (userId, body) => createWorkout(db, userId, body),
+    updateWorkout: (userId, id, body) => updateWorkout(db, userId, id, body),
+    deleteWorkout: (userId, id) => deleteWorkout(db, userId, id),
   };
 }

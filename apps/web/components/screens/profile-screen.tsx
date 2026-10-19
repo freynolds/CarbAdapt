@@ -1,20 +1,26 @@
 "use client";
 
-import { CONNECTION_PROVIDER_ORDER, ConnectionStatus } from "@carbadapt/contracts";
+import { CONNECTION_PROVIDER_ORDER, ConnectionStatus, HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
-import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TypeChip } from "@/components/ui";
+import { ApiError, apiSend } from "@/lib/api";
+import { ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
 import { addDays, formatDay, formatNumber, todayKey } from "@/lib/format";
 import { displayJson } from "@/lib/json";
 import {
   parseConflicts,
   parseConnections,
   parseContainers,
+  parseDeleted,
   parseGut,
+  parseGutPreview,
   parseMe,
+  parsePhysical,
   parseProducts,
   parseRaces,
+  parseStarting,
   parseWorkouts,
 } from "@/lib/parse";
 
@@ -176,7 +182,8 @@ function countGear(containers: { type: string }[]) {
 }
 
 export function AccountScreen() {
-  const { token, t } = useApp();
+  const { token, t, logout } = useApp();
+  const router = useRouter();
   const me = useGet(token ? "/me" : null, parseMe);
   const [ask, setAsk] = useState(false);
   if (!token)
@@ -214,7 +221,17 @@ export function AccountScreen() {
             <button type="button" className="choice" onClick={() => setAsk(false)}>
               {t("common.cancel")}
             </button>
-            <button type="button" className="bt" onClick={() => setAsk(false)}>
+            <button
+              type="button"
+              className="bt"
+              onClick={() => {
+                if (!token) return;
+                void apiSend("/me", { method: "DELETE", token, parse: parseDeleted }).then(() => {
+                  logout();
+                  router.push("/");
+                });
+              }}
+            >
               {t("acct.delete")}
             </button>
           </div>
@@ -240,6 +257,7 @@ export function ConnectionsScreen() {
   const { token, t } = useApp();
   const connections = useGet(token ? "/connections" : null, parseConnections);
   const [local, setLocal] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   if (!token)
     return (
       <Screen title={t("conn.title")} tabs>
@@ -257,6 +275,7 @@ export function ConnectionsScreen() {
     <Screen title={t("conn.title")} back="/profile" tabs>
       <Preview />
       <p className="mu">{t("conn.preview")}</p>
+      {error ? <ErrorText code={error} /> : null}
       {[...connections.data.connections]
         .sort((a, b) => providerRank(a.provider) - providerRank(b.provider))
         .map((row) => {
@@ -270,7 +289,25 @@ export function ConnectionsScreen() {
               <button
                 type="button"
                 className="pill"
-                onClick={() => setLocal((current) => ({ ...current, [row.provider]: !connected }))}
+                onClick={() => {
+                  const next = !connected;
+                  void apiSend(`/connections/${row.provider}`, {
+                    method: next ? "POST" : "DELETE",
+                    token,
+                    parse: (value) => {
+                      if (!value || typeof value !== "object" || !("connected" in value)) {
+                        throw new ApiError(HttpErrorCode.InternalError);
+                      }
+                      return value;
+                    },
+                  })
+                    .then(() => setLocal((current) => ({ ...current, [row.provider]: next })))
+                    .catch((caught: unknown) => {
+                      setError(
+                        caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError,
+                      );
+                    });
+                }}
               >
                 {connected ? t("status.disconnect") : t("status.connect")}
               </button>
@@ -363,7 +400,39 @@ export function PhysicalScreen() {
             <span>{t(FIELDS.find((row) => row[0] === editing)?.[1] ?? "phys.weight")}</span>
             <input value={draft} onChange={(event) => setDraft(event.target.value)} />
           </label>
-          <button type="button" className="bt" onClick={() => setEditing(null)}>
+          <button
+            type="button"
+            className="bt"
+            onClick={() => {
+              if (!token || !editing) return;
+              if (editing === "sweat" || editing === "zones") {
+                setEditing(null);
+                return;
+              }
+              const numeric = Number(draft.replace(/[^0-9.]/g, ""));
+              const body =
+                editing === "sex"
+                  ? { sex: draft }
+                  : editing === "weight"
+                    ? { weightKg: numeric }
+                    : editing === "ftp"
+                      ? { ftpW: Math.round(numeric) }
+                      : editing === "gh"
+                        ? { ghTolerance: Math.round(numeric) }
+                        : editing === "hr"
+                          ? { maxHr: Math.round(numeric) }
+                          : editing === "age"
+                            ? { age: Math.round(numeric) }
+                            : { heightCm: Math.round(numeric) };
+              if (editing !== "sex" && !Number.isFinite(numeric)) return;
+              void apiSend("/me/physical-data", {
+                method: "PATCH",
+                token,
+                body,
+                parse: parsePhysical,
+              }).then(() => window.location.reload());
+            }}
+          >
             {t("common.done")}
           </button>
         </div>
@@ -394,7 +463,20 @@ export function PhysicalScreen() {
           </button>
           <p className="mu">{t("phys.pick")}</p>
           <Preview />
-          <button type="button" className="bt" onClick={() => setKept(kept)}>
+          <button
+            type="button"
+            className="bt"
+            disabled={kept !== "manual" && kept !== "synced"}
+            onClick={() => {
+              if (!token || (kept !== "manual" && kept !== "synced")) return;
+              void apiSend(`/me/conflicts/${conflict.id}/resolve`, {
+                method: "POST",
+                token,
+                body: { resolvedWith: kept },
+                parse: (value) => value,
+              }).then(() => window.location.reload());
+            }}
+          >
             {t("phys.keep")}
           </button>
         </div>
@@ -418,6 +500,9 @@ export function ModePlanScreen() {
   const [goal, setGoal] = useState<number | null>(null);
   const [kept, setKept] = useState(false);
   const [date, setDate] = useState("");
+  const [raceId, setRaceId] = useState<string | null>(null);
+  const [previewSteps, setPreviewSteps] = useState<{ index: number; gh: number; approxDate: string | null }[] | null>(null);
+  const [saving, setSaving] = useState(false);
   const chosen = mode ?? me?.user.mode ?? null;
   const plan = gut.status === "ready" ? gut.data.plan : null;
   const shownGoal = goal ?? plan?.goalGh ?? 90;
@@ -431,6 +516,26 @@ export function ModePlanScreen() {
   }, [target, zone]);
   const tooFast = shownGoal - start >= 50 && days <= 21;
   const over120 = shownGoal > 120;
+  useEffect(() => {
+    if (!token || chosen !== "GUT_TRAINING") return;
+    const startGh = plan?.startGh ?? me?.physical?.ghTolerance ?? null;
+    if (startGh == null || !target) return;
+    const handle = window.setTimeout(() => {
+      void apiSend("/gut-plan/preview", {
+        method: "POST",
+        token,
+        body: {
+          targetKind: "DATE" as const,
+          targetDate: target,
+          startGh,
+          goalGh: shownGoal,
+          sessionsPerWeek: null,
+        },
+        parse: parseGutPreview,
+      }).then((result) => setPreviewSteps(result.steps));
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [token, chosen, target, shownGoal, plan?.startGh, me?.physical?.ghTolerance]);
 
   if (!token)
     return (
@@ -470,14 +575,30 @@ export function ModePlanScreen() {
           <p className="mu">{t("plan.raceOrDate")}</p>
           <div className="carousel">
             {races.status === "ready"
-              ? races.data.races.map((race) => (
-                  <Link key={race.id} href={`/races/${race.id}/edit`} className="tile">
-                    <b>{race.name}</b>
-                    <div className="mu m">
-                      {race.date ? formatDay(race.date, locale, zone) : "—"}
-                    </div>
-                  </Link>
-                ))
+              ? races.data.races.map((race) => {
+                  const reason = raceWindow(race.date, todayKey(zone));
+                  const selected = raceId === race.id;
+                  return (
+                    <button
+                      key={race.id}
+                      type="button"
+                      className={selected ? "tile sel" : "tile"}
+                      disabled={reason != null}
+                      onClick={() => {
+                        if (reason || !race.date) return;
+                        setRaceId(race.id);
+                        setDate(race.date);
+                      }}
+                    >
+                      <b>{race.name}</b>
+                      <div className="mu m">
+                        {race.date ? formatDay(race.date, locale, zone) : "—"}
+                      </div>
+                      {reason === "past" ? <div className="mu">{t("plan.racePast")}</div> : null}
+                      {reason === "soon" ? <div className="mu">{t("plan.raceSoon")}</div> : null}
+                    </button>
+                  );
+                })
               : null}
             <Link
               href="/races/new"
@@ -561,27 +682,102 @@ export function ModePlanScreen() {
           ) : null}
           <p className="ey">{t("plan.ladder")}</p>
           <p className="mu">{t("plan.reaches")}</p>
-          {(plan?.steps ?? []).map((step) => (
-            <div key={step.id} className="rw" style={{ justifyContent: "space-between" }}>
+          {(previewSteps ??
+            plan?.steps.map((step) => ({
+              index: step.index,
+              gh: step.gh,
+              approxDate: step.approxDate,
+              status: step.status,
+            })) ??
+            []
+          ).map((step, index) => (
+            <div key={`${step.gh}-${index}`} className="rw" style={{ justifyContent: "space-between" }}>
               <b className="m">{step.gh} g/h</b>
               <span className="mu">
                 {step.approxDate ? formatDay(step.approxDate, locale, zone) : "—"}
               </span>
               <span className="ch cu">
-                {step.status === "DONE"
+                {"status" in step && step.status === "DONE"
                   ? t("plan.done")
-                  : step.status === "CURRENT"
+                  : "status" in step && step.status === "CURRENT"
                     ? t("plan.now")
-                    : t("plan.upcoming")}
+                    : index === 0 && !("status" in step)
+                      ? t("plan.now")
+                      : t("plan.upcoming")}
               </span>
             </div>
           ))}
-          {!plan ? <p className="mu">{t("plan.noPlan")}</p> : null}
+          {!plan && !previewSteps ? <p className="mu">{t("plan.noPlan")}</p> : null}
         </>
       )}
+      {chosen ? (
+        <button
+          type="button"
+          className="bt"
+          disabled={saving}
+          onClick={() => {
+            if (!token || !chosen) return;
+            const startGh = plan?.startGh ?? me?.physical?.ghTolerance ?? null;
+            setSaving(true);
+            void apiSend("/me", {
+              method: "PATCH",
+              token,
+              body: { mode: chosen },
+              parse: parseMe,
+            })
+              .then(async () => {
+                if (chosen !== "GUT_TRAINING") {
+                  window.location.assign("/profile");
+                  return;
+                }
+                if (startGh == null) {
+                  window.location.assign("/profile/mode-plan/estimate");
+                  return;
+                }
+                const selected =
+                  races.status === "ready"
+                    ? races.data.races.find((race) => race.id === raceId && race.date)
+                    : null;
+                const body = selected?.date
+                  ? {
+                      targetKind: "RACE" as const,
+                      raceId: selected.id,
+                      targetDate: selected.date,
+                      startGh,
+                      goalGh: shownGoal,
+                      sessionsPerWeek: null,
+                    }
+                  : {
+                      targetKind: "DATE" as const,
+                      targetDate: target,
+                      startGh,
+                      goalGh: shownGoal,
+                      sessionsPerWeek: null,
+                    };
+                await apiSend("/gut-plan", { method: "PUT", token, body, parse: parseGut });
+                window.location.assign("/profile");
+              })
+              .catch(() => setSaving(false));
+          }}
+        >
+          {t("plan.finish")}
+        </button>
+      ) : null}
     </Screen>
   );
 }
+
+function raceWindow(date: string | null, today: string): "past" | "soon" | null {
+  if (!date) return "soon";
+  const days = Math.round(
+    (new Date(`${date}T12:00:00Z`).getTime() - new Date(`${today}T12:00:00Z`).getTime()) / 86400000,
+  );
+  if (days < 0) return "past";
+  if (days < 28) return "soon";
+  return null;
+}
+
+type EstimateLine = { productId: string; servings: number };
 
 export function EstimateScreen() {
   const { token, me, t, locale } = useApp();
@@ -593,8 +789,9 @@ export function EstimateScreen() {
   );
   const products = useGet(token ? "/products" : null, parseProducts);
   const [picks, setPicks] = useState<
-    Record<string, { productId: string; servings: number; mild: boolean }>
+    Record<string, { lines: EstimateLine[]; mild: boolean | null }>
   >({});
+  const [step, setStep] = useState(0);
   const [unknown, setUnknown] = useState(false);
   if (!token)
     return (
@@ -602,120 +799,196 @@ export function EstimateScreen() {
         <NeedSignIn />
       </Screen>
     );
-  const weight = me?.physical?.weightKg ?? 70;
-  const fallback = Math.min(60, Math.round(weight));
   const list = products.status === "ready" ? products.data.products : [];
   const rows =
     workouts.status === "ready"
-      ? workouts.data.workouts.filter((row) => row.status !== "PLANNED").slice(0, 5)
+      ? workouts.data.workouts.filter((row) => row.status !== "PLANNED" && row.durationMin).slice(0, 5)
       : [];
+  const linesFor = (id: string): EstimateLine[] =>
+    picks[id]?.lines ?? (list[0] ? [{ productId: list[0].id, servings: 1 }] : []);
+  const rideGh = (row: (typeof rows)[number]) => {
+    if (!row.durationMin) return 0;
+    const carbs = linesFor(row.id).reduce((sum, line) => {
+      const product = list.find((item) => item.id === line.productId);
+      return sum + (product ? product.carbsG * line.servings : 0);
+    }, 0);
+    return Math.round(carbs / (row.durationMin / 60));
+  };
   let best = 0;
   for (const row of rows) {
-    const pick = picks[row.id];
-    if (!pick || !pick.mild || !row.durationMin) continue;
-    const product = list.find((item) => item.id === pick.productId);
-    if (!product) continue;
-    const gh = Math.round((product.carbsG * pick.servings) / (row.durationMin / 60));
-    if (gh > best) best = gh;
+    if (picks[row.id]?.mild === false) continue;
+    best = Math.max(best, rideGh(row));
+  }
+  const phaseCount = rows.length * 2;
+  const finished = rows.length === 0 || step >= phaseCount;
+  const rideIndex = Math.floor(step / 2);
+  const feeling = step % 2 === 1;
+  const ride = rows[rideIndex];
+  function writeLines(id: string, lines: EstimateLine[], mild: boolean | null) {
+    setPicks((current) => ({ ...current, [id]: { lines, mild } }));
   }
   return (
     <Screen title={t("est.title")} back="/profile/mode-plan">
       <Preview />
-      <p>{t("est.help")}</p>
+      <p className="big" style={{ fontSize: 40 }}>
+        {t("est.live", { gh: best || "—" })}
+      </p>
       {workouts.status === "error" ? <ErrorText code={workouts.code} /> : null}
       {rows.length === 0 ? <p className="mu">{t("est.empty")}</p> : null}
-      {rows.map((row) => {
-        const pick = picks[row.id] ?? { productId: list[0]?.id ?? "", servings: 1, mild: true };
-        return (
-          <div key={row.id} className="cd">
-            <div className="rw" style={{ justifyContent: "space-between" }}>
-              <b>{row.name}</b>
-              <TypeChip type={row.workoutType} />
-            </div>
-            <p className="mu m">{row.durationMin ? `${row.durationMin} min` : "—"}</p>
-            <label className="field">
-              <span>{t("prof.prodSection")}</span>
-              <select
-                value={pick.productId}
-                onChange={(event) =>
-                  setPicks((current) => ({
-                    ...current,
-                    [row.id]: { ...pick, productId: event.target.value },
-                  }))
-                }
-              >
-                {list.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="stepper">
-              <button
-                type="button"
-                onClick={() =>
-                  setPicks((current) => ({
-                    ...current,
-                    [row.id]: { ...pick, servings: Math.max(0, pick.servings - 1) },
-                  }))
-                }
-              >
-                −
-              </button>
-              <span className="m">
-                {t("est.servings")} {pick.servings}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setPicks((current) => ({
-                    ...current,
-                    [row.id]: { ...pick, servings: pick.servings + 1 },
-                  }))
-                }
-              >
-                +
-              </button>
-            </div>
+      {!finished && ride ? (
+        feeling ? (
+          <>
+            <p className="ey">{t("est.feel")}</p>
+            <p>{t("est.ride", { min: ride.durationMin ?? 0, date: ride.plannedDate ? formatDay(ride.plannedDate, locale, zone) : "—" })}</p>
             <div className="row">
               <button
                 type="button"
-                className={pick.mild ? "pill sel" : "pill"}
-                onClick={() =>
-                  setPicks((current) => ({ ...current, [row.id]: { ...pick, mild: true } }))
-                }
+                className={picks[ride.id]?.mild !== false ? "pill sel" : "pill"}
+                onClick={() => writeLines(ride.id, linesFor(ride.id), true)}
               >
                 {t("est.mild")}
               </button>
               <button
                 type="button"
-                className={!pick.mild ? "pill sel" : "pill"}
-                onClick={() =>
-                  setPicks((current) => ({ ...current, [row.id]: { ...pick, mild: false } }))
-                }
+                className={picks[ride.id]?.mild === false ? "pill sel" : "pill"}
+                onClick={() => writeLines(ride.id, linesFor(ride.id), false)}
               >
                 {t("est.worse")}
               </button>
             </div>
-          </div>
-        );
-      })}
-      <p className="big" style={{ fontSize: 40 }}>
-        {t("est.live", { gh: best || "—" })}
-      </p>
-      {best > 0 ? <p>{t("est.start", { gh: best })}</p> : null}
-      <button
-        type="button"
-        className={unknown ? "choice sel" : "choice"}
-        onClick={() => setUnknown(true)}
-      >
-        {t("est.unknown")}
-      </button>
-      <p className="mu">{t("est.fallback")}</p>
-      {unknown ? (
-        <p className="m">{t("est.fallbackValue", { gh: formatNumber(fallback, locale) })}</p>
+          </>
+        ) : (
+          <>
+            <p>
+              {t("est.ride", {
+                min: ride.durationMin ?? 0,
+                date: ride.plannedDate ? formatDay(ride.plannedDate, locale, zone) : "—",
+              })}
+            </p>
+            <p className="mu m">
+              {rideGh(ride)} g/h
+            </p>
+            {linesFor(ride.id).map((line, index) => (
+              <div key={`${line.productId}-${index}`} className="cd">
+                <label className="field">
+                  <span>{t("prof.prodSection")}</span>
+                  <select
+                    value={line.productId}
+                    onChange={(event) => {
+                      const lines = linesFor(ride.id).map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, productId: event.target.value } : item,
+                      );
+                      writeLines(ride.id, lines, picks[ride.id]?.mild ?? null);
+                    }}
+                  >
+                    {list.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="stepper">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lines = linesFor(ride.id).map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, servings: Math.max(0, item.servings - 1) } : item,
+                      );
+                      writeLines(ride.id, lines, picks[ride.id]?.mild ?? null);
+                    }}
+                  >
+                    −
+                  </button>
+                  <span className="m">
+                    {t("est.servings")} {line.servings}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lines = linesFor(ride.id).map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, servings: item.servings + 1 } : item,
+                      );
+                      writeLines(ride.id, lines, picks[ride.id]?.mild ?? null);
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="gh"
+              onClick={() => {
+                const next = list.find((product) => !linesFor(ride.id).some((line) => line.productId === product.id)) ?? list[0];
+                if (!next) return;
+                writeLines(
+                  ride.id,
+                  [...linesFor(ride.id), { productId: next.id, servings: 1 }],
+                  picks[ride.id]?.mild ?? null,
+                );
+              }}
+            >
+              {t("est.addProduct")}
+            </button>
+          </>
+        )
+      ) : rows.length > 0 ? (
+        <>
+          <p className="ey">{t("est.resultTitle")}</p>
+          {best > 0 ? <p>{t("est.start", { gh: best })}</p> : null}
+          <button type="button" className={unknown ? "choice sel" : "choice"} onClick={() => setUnknown(true)}>
+            {t("est.unknown")}
+          </button>
+          <p className="mu">{t("est.fallback")}</p>
+        </>
       ) : null}
+      {!finished && ride ? (
+        <button type="button" className="bt" onClick={() => setStep((current) => current + 1)}>
+          {t("est.nextRide")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="bt"
+          onClick={() => {
+            if (!token) return;
+            const entries = unknown
+              ? []
+              : rows.flatMap((row) => {
+                  if (!row.durationMin) return [];
+                  const carbs = linesFor(row.id).reduce((sum, line) => {
+                    const product = list.find((item) => item.id === line.productId);
+                    return sum + (product ? product.carbsG * line.servings : 0);
+                  }, 0);
+                  return [
+                    {
+                      carbsG: carbs,
+                      durationMin: row.durationMin,
+                      symptom: picks[row.id]?.mild === false ? ("MODERATE" as const) : ("MILD" as const),
+                    },
+                  ];
+                });
+            void apiSend("/gut-plan/starting-point", {
+              method: "POST",
+              token,
+              body: { entries },
+              parse: parseStarting,
+            }).then((result) => {
+              if (result.gh == null) return;
+              return apiSend("/me/physical-data", {
+                method: "PATCH",
+                token,
+                body: { ghTolerance: result.gh },
+                parse: parsePhysical,
+              }).then(() => window.location.assign("/profile/mode-plan"));
+            });
+          }}
+        >
+          {t("common.save")}
+        </button>
+      )}
     </Screen>
   );
 }

@@ -21,7 +21,7 @@ const env = {
   API_URL: process.env.API_URL || `http://${apiHost}:${apiPort}`,
 };
 
-const children = ["@carbadapt/web", "@carbadapt/api"].map((workspace) =>
+const children = ["@carbadapt/web", "@carbadapt/api", "@carbadapt/worker"].map((workspace) =>
   spawn("npm", ["run", "dev", "-w", workspace], {
     stdio: "inherit",
     env,

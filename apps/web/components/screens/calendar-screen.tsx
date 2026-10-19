@@ -1,12 +1,16 @@
 "use client";
 
 import type { Workout } from "@carbadapt/contracts";
+import { HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
-import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TypeChip } from "@/components/ui";
-import { addDays, formatDay, formatDuration, formatNumber, todayKey } from "@/lib/format";
-import { parseRaces, parseSweatTests, parseWorkouts } from "@/lib/parse";
+import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TabBar, TypeChip } from "@/components/ui";
+import { labeledAmount } from "@/lib/amounts";
+import { ApiError, apiSend } from "@/lib/api";
+import { addDays, formatDay, formatDuration, todayKey } from "@/lib/format";
+import { manualSport, readAnswers } from "@/lib/onboarding";
+import { parseRaces, parseSweatTests, parseWorkout, parseWorkouts } from "@/lib/parse";
 
 type Row = {
   key: string;
@@ -80,17 +84,16 @@ export function CalendarScreen() {
           });
         }
         for (const stage of race.stages) {
-          if (!stage.date) continue;
+          if (!stage.date || !stage.recovery) continue;
+          const gap = t(`rec.${stage.recovery.gapCase}` as "rec.UNDER_4H");
           list.push({
-            key: stage.id,
+            key: `gap-${stage.id}`,
             date: stage.date,
-            href: stage.recovery
-              ? `/races/${race.id}/stages/${stage.id}/recovery`
-              : `/races/${race.id}/edit`,
-            title: `${race.name} · ${t("race.stage", { n: stage.index + 1 })}`,
-            meta: t("cal.stage"),
+            href: `/races/${race.id}/stages/${stage.id}/recovery`,
+            title: t("cal.between"),
+            meta: `${race.name} · ${t("race.stage", { n: stage.index + 1 })} · ${gap} · ${stage.recovery.carbsTargetG} g`,
             chip: null,
-            kind: "race",
+            kind: "between",
           });
         }
       }
@@ -113,6 +116,21 @@ export function CalendarScreen() {
     }
     return list.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
   }, [workouts, races, sweat, t, locale, zone]);
+  const scroller = useRef<HTMLDivElement>(null);
+  const anchor =
+    rows.find((row) => row.date === today)?.key ?? rows.find((row) => row.date > today)?.key ?? null;
+
+  useEffect(() => {
+    const root = scroller.current;
+    if (!root || !anchor) return;
+    const index = rows.findIndex((row) => row.key === anchor);
+    const previousKey = index > 0 ? rows[index - 1]?.key : anchor;
+    const target = root.querySelector(`[data-key="${CSS.escape(previousKey ?? anchor)}"]`);
+    if (!(target instanceof HTMLElement)) return;
+    const top =
+      target.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
+    root.scrollTop = Math.max(0, top);
+  }, [anchor, rows]);
 
   if (!token)
     return (
@@ -139,45 +157,53 @@ export function CalendarScreen() {
     bucket.push(row);
     groups.set(row.date, bucket);
   }
-
   return (
-    <Screen
-      title={t("common.calendar")}
-      tabs
-      action={
-        <Link href="/calendar/new" className="plus" aria-label={t("cal.add")}>
-          +
-        </Link>
-      }
-    >
-      {rows.length === 0 ? <p className="mu">{t("cal.empty")}</p> : null}
-      {[...groups.entries()].map(([date, items]) => (
-        <section key={date}>
-          <p className="ey">
-            {date < today
-              ? t("cal.past", { day: formatDay(date, locale, zone) })
-              : date === today
-                ? t("cal.today", { day: formatDay(date, locale, zone) })
-                : t("cal.upcoming", { day: formatDay(date, locale, zone) })}
-          </p>
-          {items.map((item) => (
-            <Link key={item.key} href={item.href} className="td">
-              <div>
-                <b>{item.title}</b>
-                <span className="mu m">{item.meta}</span>
-              </div>
-              {item.chip === "SWEAT" ? (
-                <span className="ch ci">{t("type.sweat")}</span>
-              ) : item.chip ? (
-                <TypeChip type={item.chip} />
-              ) : (
-                <i>›</i>
-              )}
-            </Link>
-          ))}
-        </section>
-      ))}
-    </Screen>
+    <div className="screen">
+      <div className="cal-head">
+        <h1 className="t">
+          {t("common.calendar")}
+          <Link href="/calendar/new" className="plus" aria-label={t("cal.add")}>
+            +
+          </Link>
+        </h1>
+      </div>
+      <div className="screen-body" ref={scroller}>
+        {rows.length === 0 ? <p className="mu">{t("cal.empty")}</p> : null}
+        {[...groups.entries()].map(([date, items]) => {
+          const when = date < today ? "past" : date === today ? "today" : "upcoming";
+          return (
+            <section key={date}>
+              <p className={`ey cal-day ${when}`}>
+                {when === "past"
+                  ? t("cal.past", { day: formatDay(date, locale, zone) })
+                  : when === "today"
+                    ? t("cal.today", { day: formatDay(date, locale, zone) })
+                    : t("cal.upcoming", { day: formatDay(date, locale, zone) })}
+              </p>
+              {items.map((item) => (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  data-key={item.key}
+                  className={`cd cal-card ${when}${item.kind === "between" ? " between" : ""}`}
+                >
+                  <div className="rw" style={{ justifyContent: "space-between" }}>
+                    <b>{item.title}</b>
+                    {item.chip === "SWEAT" ? (
+                      <span className="ch ci">{t("type.sweat")}</span>
+                    ) : item.chip ? (
+                      <TypeChip type={item.chip} />
+                    ) : null}
+                  </div>
+                  <span className="mu m">{item.meta}</span>
+                </Link>
+              ))}
+            </section>
+          );
+        })}
+      </div>
+      <TabBar />
+    </div>
   );
 }
 
@@ -192,7 +218,21 @@ function metaFor(
     return `${duration} · ${t("cal.ghTarget", { gh: workout.fuelingPlan.targetGPerH })}`;
   }
   if (workout.fuelingPlan) {
-    return `${duration} · ${formatNumber(workout.fuelingPlan.totalCarbsG, locale)} g · ${formatNumber(workout.fuelingPlan.totalFluidMl, locale)} ml`;
+    const carbs = labeledAmount(
+      workout.fuelingPlan.carryList,
+      "carbStatus",
+      workout.fuelingPlan.totalCarbsG,
+      locale,
+      t("common.notSet"),
+    );
+    const fluid = labeledAmount(
+      workout.fuelingPlan.carryList,
+      "fluidStatus",
+      workout.fuelingPlan.totalFluidMl,
+      locale,
+      t("common.notSet"),
+    );
+    return `${duration} · ${carbs} g · ${fluid} ml`;
   }
   return duration;
 }
@@ -208,12 +248,41 @@ const TYPE_LABEL = {
 } as const;
 
 export function ManualWorkoutScreen() {
-  const { t } = useApp();
+  const { token, t, locale } = useApp();
   const [date, setDate] = useState("");
   const [hours, setHours] = useState("2");
   const [minutes, setMinutes] = useState("00");
   const [type, setType] = useState<(typeof TYPES)[number]>("BASE");
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<Workout | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+
+  async function save() {
+    if (!token || !date) return;
+    const durationMin = Number(hours) * 60 + Number(minutes);
+    if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const body = await apiSend("/workouts", {
+        method: "POST",
+        token,
+        body: {
+          name: t(TYPE_LABEL[type]),
+          sport: manualSport(readAnswers()),
+          workoutType: type,
+          plannedDate: date,
+          durationMin,
+        },
+        parse: parseWorkout,
+      });
+      setSaved(body.workout);
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (saved) {
     return (
@@ -229,7 +298,28 @@ export function ManualWorkoutScreen() {
           </p>
         </div>
         <p className="ey">{t("man.carry")}</p>
-        <p className="mu">{t("man.noPlan")}</p>
+        {saved.fuelingPlan ? (
+          <p className="mu">
+            {labeledAmount(
+              saved.fuelingPlan.carryList,
+              "carbStatus",
+              saved.fuelingPlan.totalCarbsG,
+              locale,
+              t("common.notSet"),
+            )}{" "}
+            g ·{" "}
+            {labeledAmount(
+              saved.fuelingPlan.carryList,
+              "fluidStatus",
+              saved.fuelingPlan.totalFluidMl,
+              locale,
+              t("common.notSet"),
+            )}{" "}
+            ml
+          </p>
+        ) : (
+          <p className="mu">{t("man.noPlan")}</p>
+        )}
         <div className="note">
           <b>{t("dev.get")}</b>
           {t("man.device")}
@@ -277,7 +367,9 @@ export function ManualWorkoutScreen() {
           </button>
         ))}
       </div>
-      <button type="button" className="bt" onClick={() => setSaved(true)}>
+      {error ? <ErrorText code={error} /> : null}
+      {!token ? <NeedSignIn /> : null}
+      <button type="button" className="bt" disabled={busy || !token} onClick={() => void save()}>
         {t("common.save")}
       </button>
     </Screen>

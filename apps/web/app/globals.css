@@ -36,7 +36,8 @@ button {
 }
 
 .stage {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -106,6 +107,50 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.cal-head {
+  flex: none;
+  padding: 28px 20px 8px;
+  background: var(--bg);
+  z-index: 2;
+}
+
+.cal-head .t {
+  align-items: center;
+}
+
+.cal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cal-card.past {
+  background: color-mix(in srgb, var(--mu) 18%, var(--cd));
+  opacity: 0.72;
+}
+
+.cal-card.today {
+  background: color-mix(in srgb, #c6f135 28%, var(--cd));
+  box-shadow: inset 4px 0 #c6f135;
+}
+
+.cal-card.upcoming {
+  box-shadow: inset 4px 0 #a3b0c4;
+}
+
+.cal-card.between {
+  border: 1px dashed var(--ln);
+}
+
+.cal-day.today {
+  color: #101a2b;
+  background: #c6f135;
+  display: inline-flex;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
 .t {
@@ -735,6 +780,21 @@ button {
   font:
     700 22px var(--font-mono),
     monospace;
+}
+
+.stepper input.big {
+  width: 8rem;
+  text-align: center;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.stepper button.coarse {
+  width: auto;
+  min-width: 64px;
+  padding: 0 10px;
+  font-size: 14px;
 }
 
 .table {

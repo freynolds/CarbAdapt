@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useApp, useGet } from "@/components/app-state";
 import {
   BigStats,
-  CarryLine,
+  CarryList,
   ErrorText,
   LoadingText,
   NeedSignIn,
@@ -14,8 +14,9 @@ import {
   SweatCard,
   TypeChip,
 } from "@/components/ui";
-import { addDays, formatDay, formatDuration, formatNumber, todayKey } from "@/lib/format";
-import { carryItems } from "@/lib/json";
+import { labeledAmount } from "@/lib/amounts";
+import { addDays, formatDay, formatDuration, todayKey } from "@/lib/format";
+import { RecoveryBlurb } from "@/components/recovery-blurb";
 import { parseContainers, parseGut, parseHome, parseRaces, parseWorkouts } from "@/lib/parse";
 
 function todoHref(todo: Todo, raceByRehearsal: Map<string, string>): string {
@@ -193,15 +194,33 @@ export function HomeScreen() {
             <BigStats
               items={[
                 {
-                  value: formatNumber(hero.fuelingPlan.totalCarbsG, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "carbStatus",
+                    hero.fuelingPlan.totalCarbsG,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.gCarbs"),
                 },
                 {
-                  value: formatNumber(hero.fuelingPlan.totalFluidMl, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "fluidStatus",
+                    hero.fuelingPlan.totalFluidMl,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.mlFluid"),
                 },
                 {
-                  value: formatNumber(hero.fuelingPlan.totalSodiumMg, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "sodiumStatus",
+                    hero.fuelingPlan.totalSodiumMg,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.mgSodium"),
                 },
               ]}
@@ -209,6 +228,7 @@ export function HomeScreen() {
           </Link>
           <div className="hr" />
           <Carry plan={hero.fuelingPlan.carryList} />
+          {hero.stageId ? <BetweenStage stageId={hero.stageId} /> : null}
         </div>
       ) : (
         <div className="cd">
@@ -289,7 +309,6 @@ function Carry({ plan }: { plan: unknown }) {
       ? containers.data.containers.map((row) => [row.id, row.colorHex] as const)
       : [],
   );
-  const items = carryItems(plan);
   return (
     <>
       <div className="rw" style={{ justifyContent: "space-between" }}>
@@ -298,15 +317,35 @@ function Carry({ plan }: { plan: unknown }) {
           +
         </Link>
       </div>
-      {items.map((item, index) => (
-        <CarryLine
-          key={`${item.name}-${index}`}
-          name={item.name}
-          detail={item.detail}
-          kind={item.kind}
-          color={item.containerId ? colorById.get(item.containerId) : null}
-        />
-      ))}
+      <CarryList plan={plan} colors={colorById} />
     </>
   );
+}
+
+function BetweenStage({ stageId }: { stageId: string }) {
+  const { token, t } = useApp();
+  const races = useGet(token ? "/races" : null, parseRaces);
+  if (races.status !== "ready") return null;
+  for (const race of races.data.races) {
+    const stage = race.stages.find((row) => row.id === stageId);
+    const recovery = stage?.recovery;
+    if (!stage || !recovery) continue;
+    return (
+      <Link
+        href={`/races/${race.id}/stages/${stage.id}/recovery`}
+        className="cd"
+        style={{ display: "flex", flexDirection: "column", gap: 6 }}
+      >
+        <span className="ey">{t("home.between")}</span>
+        <b>{t("race.stage", { n: stage.index + 1 })}</b>
+        <RecoveryBlurb
+          gapCase={recovery.gapCase}
+          gapMin={recovery.gapMin}
+          carbsTargetG={recovery.carbsTargetG}
+          meals={recovery.meals}
+        />
+      </Link>
+    );
+  }
+  return null;
 }

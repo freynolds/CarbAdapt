@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BreakfastNote,
-  FIXTURE_ENGINE_VERSION,
   HttpErrorCode,
   httpErrorBody,
 } from "@carbadapt/contracts";
@@ -56,13 +55,13 @@ test("GET loading day and breakfast read the race for the signed-in athlete", as
       sodiumMg: number;
       derived: boolean;
     };
-    assert.equal(breakfastBody.engineVersion, FIXTURE_ENGINE_VERSION);
-    assert.equal(breakfastBody.note, BreakfastNote.Early);
-    assert.equal(breakfastBody.earlyStart, true);
-    assert.equal(breakfastBody.gPerKg, 1.5);
-    assert.equal(breakfastBody.carbsG, 96);
-    assert.equal(breakfastBody.fluidMl, 320);
-    assert.equal(breakfastBody.sodiumMg, 256);
+    assert.equal(breakfastBody.engineVersion, "2026.10.19");
+    assert.equal(breakfastBody.note, BreakfastNote.Standard);
+    assert.equal(breakfastBody.earlyStart, null);
+    assert.equal(breakfastBody.gPerKg, 2);
+    assert.equal(breakfastBody.carbsG, 128);
+    assert.equal(breakfastBody.fluidMl, null);
+    assert.equal(breakfastBody.sodiumMg, null);
     assert.equal(breakfastBody.derived, true);
 
     const missing = await fetch(`${baseUrl}/races/${raceId}/loading/d-1`, { headers: { cookie } });

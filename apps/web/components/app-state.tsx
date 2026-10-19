@@ -17,8 +17,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { z } from "zod";
 import { ApiError, apiSend } from "@/lib/api";
-import { parseAthletes, parseLogin, parseMe } from "@/lib/parse";
+import { parseAthletes, parseDeleted, parseLogin, parseMe } from "@/lib/parse";
+
+const claimedSchema = z.object({ claimed: z.literal(true) }).strict();
+const ANON_KEY = "carbadapt.anon";
 
 const TOKEN_KEY = "carbadapt.token";
 const ATHLETE_KEY = "carbadapt.athlete";
@@ -51,6 +55,7 @@ type AppContextValue = {
   setLocale: (locale: Locale) => void;
   setTheme: (theme: ThemeChoice) => void;
   login: (athleteId: string) => Promise<void>;
+  acceptSession: (token: string, userId: string) => Promise<void>;
   logout: () => void;
   t: (id: MessageId, vars?: Record<string, string | number>) => string;
 };
@@ -146,20 +151,46 @@ export function AppState({ children }: { children: ReactNode }) {
     applyTheme(next);
   }, []);
 
-  const login = useCallback(async (nextAthleteId: string) => {
-    const body = await apiSend("/dev/login-as", {
-      method: "POST",
-      body: { athleteId: nextAthleteId },
-      parse: parseLogin,
-    });
-    window.localStorage.setItem(TOKEN_KEY, body.token);
-    window.localStorage.setItem(ATHLETE_KEY, body.user.id);
-    setToken(body.token);
-    setAthleteId(body.user.id);
-    if (!window.localStorage.getItem(LOCALE_KEY)) setLocaleState(localeFromUser(body.user.locale));
+  const acceptSession = useCallback(async (nextToken: string, nextUserId: string) => {
+    window.localStorage.setItem(TOKEN_KEY, nextToken);
+    window.localStorage.setItem(ATHLETE_KEY, nextUserId);
+    setToken(nextToken);
+    setAthleteId(nextUserId);
+    const draft = window.sessionStorage.getItem(ANON_KEY);
+    if (!draft) return;
+    try {
+      await apiSend("/onboarding/claim", {
+        method: "POST",
+        token: nextToken,
+        body: { anonId: draft },
+        parse: (value) => claimedSchema.parse(value),
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof ApiError) || error.code !== HttpErrorCode.NotFound) return;
+    }
   }, []);
 
+  const login = useCallback(
+    async (nextAthleteId: string) => {
+      const body = await apiSend("/dev/login-as", {
+        method: "POST",
+        body: { athleteId: nextAthleteId },
+        parse: parseLogin,
+      });
+      if (!window.localStorage.getItem(LOCALE_KEY))
+        setLocaleState(localeFromUser(body.user.locale));
+      await acceptSession(body.token, body.user.id);
+    },
+    [acceptSession],
+  );
+
   const logout = useCallback(() => {
+    const current = window.localStorage.getItem(TOKEN_KEY);
+    if (current) {
+      void apiSend("/auth/logout", { method: "POST", token: current, parse: parseDeleted }).catch(
+        () => undefined,
+      );
+    }
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(ATHLETE_KEY);
     setToken(null);
@@ -184,10 +215,25 @@ export function AppState({ children }: { children: ReactNode }) {
       setLocale,
       setTheme,
       login,
+      acceptSession,
       logout,
       t,
     }),
-    [ready, token, athleteId, athletes, me, locale, theme, setLocale, setTheme, login, logout, t],
+    [
+      ready,
+      token,
+      athleteId,
+      athletes,
+      me,
+      locale,
+      theme,
+      setLocale,
+      setTheme,
+      login,
+      acceptSession,
+      logout,
+      t,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

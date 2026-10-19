@@ -2,7 +2,7 @@
 
 CarbAdapt is an app for endurance fueling and gut training. This repository is the MVP: a Next.js web app and a separate Node API first, with iOS and Garmin Connect IQ later. Everything here runs on localhost. There is no deploy in this phase.
 
-The database schema, its first migration, and a seed for the five demo athletes are in `packages/db`. The mock API reads that MySQL data for the signed-in athlete. `apps/web` renders the product screens from that API. There is no fueling engine yet.
+The database schema, migrations, and a seed for the five demo athletes are in `packages/db`. The mock API reads and writes that MySQL data for the signed-in athlete. `apps/web` renders the product screens and saves them through the API. `packages/engine` computes fueling, the gut-training ladder, sweat rate, carb loading, race breakfast, and between-stage recovery. `apps/worker` polls due jobs.
 
 ## Architecture
 
@@ -14,9 +14,9 @@ Two processes and MySQL:
 | `apps/api` | Express API, one module per domain. Zod validates config and JSON.                | `127.0.0.1:4050` |
 | MySQL 8.x  | Application data, via Prisma in `packages/db`. Native server, or optional Docker. | `127.0.0.1:3306` |
 
-The API is separate from Next.js so the same server can later hold sessions, webhooks, and the device API without living inside the web deploy. A worker process is added in M4 for queues and timers. It is not running now.
+The API is separate from Next.js so the same server can hold sessions, webhooks, and the device API without living inside the web deploy. `npm run dev` starts the web app, the API, and the worker.
 
-Mock data, when it arrives, is authored in `packages/fixtures` and loaded into MySQL by a Prisma seed. The first screens read that data through the API. External accounts (Strava, TrainingPeaks, email) are not connected in the mock phase.
+Mock data is authored in `packages/fixtures` and loaded into MySQL by a Prisma seed. New fueling rows use `packages/engine` and `engineVersion` from that package. Strava, TrainingPeaks, and Garmin have mock adapters that run with empty keys. Live adapters read keys from the environment and return `NotConfigured` when a key is missing. Garmin stays off until `GARMIN_ENABLED=true`.
 
 ## Folder map
 
@@ -24,21 +24,21 @@ Mock data, when it arrives, is authored in `packages/fixtures` and loaded into M
 apps/
   web/            Next.js App Router. Screens for the route table in apps/web/README.md.
   api/            Express modules. Mock reads from MySQL, plus local dev login.
-  worker/         Placeholder. Job runner in M4. Not a workspace package yet.
+  worker/         MySQL job poller. Delivers due notifications and applies webhook jobs.
   ios/            Placeholder. SwiftUI in M5. Not a workspace package yet.
   garmin-ciq/     Placeholder. Connect IQ data field after M5. Not a workspace package yet.
 packages/
   config/         Base tsconfig and Prettier. ESLint flat config is the repo-root file.
   db/             Prisma schema, the first migration, the client export, and the seed.
   fixtures/       Demo data for the seed. Five athletes and the USDA food sample.
-  engine/         Pure calc functions. Empty until M3.
+  engine/         Pure calc functions and unit tests. No I/O.
   contracts/      Zod response schemas, HttpErrorCode, and shared response text.
-  integrations/   Strava, TrainingPeaks, Garmin adapters. Empty until M4.
+  integrations/   Strava, TrainingPeaks, and Garmin adapters. Mock needs no keys.
   i18n/           en / es / pt catalogs. English is the source. Spanish and Portuguese are drafts.
   design-tokens/  Brand colors, type, radii, and the CSS variables the web app imports.
 design/
   carbadapt-screens.html   Screen source. See apps/web/README.md for the extraction plan.
-docs/             ADRs and runbooks. Empty.
+docs/             Product source documents in docs/product/.
 ```
 
 Each app and package README says what belongs there, what must stay out, and which milestone fills it in.
@@ -91,7 +91,9 @@ npm run dev
 
 Open the web app at [http://127.0.0.1:3050](http://127.0.0.1:3050). It sends `/` to `/home`. The API liveness check is [http://127.0.0.1:4050/health](http://127.0.0.1:4050/health) and returns `{"status":"ok"}`.
 
-`npm run dev` runs web and api together. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run format:check` cover the workspace.
+`npm run dev` runs web, api, and worker together. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run format:check` cover the workspace.
+
+Sign in with the dev athlete switcher, or request a magic link at `/auth/magic` and open the URL printed by the API (also `GET /dev/magic-links` while `APP_ENV=mock`). `POST /dev/jobs/tick` runs due jobs once. The web app is configured for Vercel in `apps/web/vercel.json`. This repo does not link a Vercel account and does not deploy.
 
 `.env.example` uses `carbadapt` / `carbadapt` on database `carbadapt` at `127.0.0.1:3306`. Those passwords are for this local database only. MySQL 8 authenticates with `caching_sha2_password`, which Prisma 6 supports, so the URL has no auth parameter. The optional Compose file reads `.env` for `MYSQL_*` substitution. Prisma commands load the same file. Next.js does not load the root `.env` into the browser. The web app calls `/backend`, and `next.config.ts` rewrites that to `API_URL` or `http://127.0.0.1:4050`.
 
@@ -101,7 +103,7 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 
 ## Choices to confirm
 
-- **npm workspaces, without Turborepo.** The build plan names pnpm workspaces and Turborepo. This repo uses npm. The `workspaces` array is `apps/web`, `apps/api`, and `packages/*`. `apps/worker`, `apps/ios`, and `apps/garmin-ciq` stay out even if a `package.json` is added there later. Turborepo is left out until there is a task graph worth caching. `npm run dev` starts web and api together.
+- **npm workspaces, without Turborepo.** The build plan names pnpm workspaces and Turborepo. This repo uses npm. The `workspaces` array is `apps/web`, `apps/api`, `apps/worker`, and `packages/*`. `apps/ios` and `apps/garmin-ciq` stay out. Turborepo is left out until there is a task graph worth caching. `npm run dev` starts web, api, and worker together.
 - **Extra folders.** `packages/fixtures`, `packages/config`, and `docs/` are in the agreed layout and were not in the shortest step-1 list. Fixtures exist so demo data does not land in the API. Config holds the shared tsconfig and Prettier file.
 - **Schema deltas from the plan.** `packages/db/README.md` lists the seven differences kept from PR #2 (`User.mode` optional, `SweatTest.movedFrom`, `PostWorkoutLog.ladderEligible`, `Workout.stageId`, `FoodItem.sodiumMgPer100g`, `Race.startAt`, and explicit `onDelete: SetNull` on three optional relations). The client stays on the default `@prisma/client` path.
 - **Seed matches the five demo athletes from PR #2.** Computed fixture rows use `engineVersion = "fixture"`.
@@ -112,10 +114,10 @@ User-visible English uses US spelling. Write `fueling`, `liter`, `diarrhea`, and
 - **No Tailwind.** Tokens are CSS variables in `packages/design-tokens`. See that package README and `apps/web/README.md`.
 - **Board 4 of the design file is marked "earlier draft"** inside the gallery. The extraction notes treat it as non-canonical.
 
-- **Mock reads, not the PR #2 writes.** This step serves the mock-phase reads (profile, physical data, connections, containers, products, foods, workouts, fueling plans, post-workout logs, gut plan, achievements, sweat tests, races, carb loading, stage recovery, to-dos, and `GET /home`). Creates, patches, and deletes from draft PR #2 are not ported.
+- **Writes live on the module routes.** Profile, workouts, fueling, and questionnaire writes go through those modules. Gear, products, races, gut training, sweat tests, to-dos, achievements, connections, magic link, onboarding, and webhooks are mounted from `records.router.ts` on the same paths. Foods stay read-only. Draft PR #2 (`cursor/m0-m1-local-mock-22db`) can be closed: its write routes were reimplemented against this module, error, and contracts pattern.
 - **Dev login takes `athleteId`.** `POST /dev/login-as` expects `{ "athleteId" }` (the user id, `usr_ana` after the seed), sets the `carbadapt_session` cookie, and also accepts `Authorization: Bearer`. `POST /dev/reset` calls `insertSeed`, which truncates and reseeds. It does not drop the database.
 - **A few paths differ from PR #2** so they stay on the module mounts: progress is `GET /achievements/progress`, and stage recovery is `GET /races/stages/:stageId/recovery`.
 - **Food responses omit USDA precision.** That flag lives only in `packages/fixtures`. The API does not import fixture stories on the read path.
-- **Race breakfast is a mock derivation** in the carb-loading module (1.5 g/kg before 08:00 local, otherwise 2 g/kg, 5 ml/kg of the demo isotonic). It is not stored and it is not the M3 engine.
+- **Race breakfast is the engine rule:** about 2 g/kg, 2 to 3 hours before the start. Pre-race fluid, sodium, and any early-start cutoff are not set. The old 1.5 g/kg mock is gone.
 
 The web app uses a centered 390px column on desktop. That is an assumption from the iPhone frames, labeled in the dev bar, and still open if a desktop layout is wanted later.

@@ -56,4 +56,33 @@ export const gutPlanResponseSchema = z
   })
   .strict();
 
+export const gutPreviewSchema = z
+  .object({
+    tooFast: z.boolean(),
+    tooFastKnown: z.boolean(),
+    defaultGh: z.number().int().nullable(),
+    warnsAbove120: z.boolean(),
+    overMax: z.boolean(),
+    slowerBecauseUnderTwoPerWeek: z.boolean(),
+    steps: z.array(
+      z
+        .object({
+          index: z.number().int(),
+          gh: z.number().int(),
+          approxDate: calendarDateSchema.nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export const startingPointSchema = z
+  .object({
+    gh: z.number().int().nullable(),
+    source: z.enum(["history", "fallback", "not_set"]),
+  })
+  .strict();
+
 export type GutPlanResponse = z.infer<typeof gutPlanResponseSchema>;
+export type GutPreview = z.infer<typeof gutPreviewSchema>;
+export type StartingPoint = z.infer<typeof startingPointSchema>;

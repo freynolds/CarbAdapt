@@ -25,6 +25,7 @@ export const messages = {
   },
   "common.loading": { en: "Loading", es: "Cargando", pt: "A carregar" },
   "common.empty": { en: "Nothing here yet.", es: "Todavía no hay nada.", pt: "Ainda não há nada." },
+  "common.notSet": { en: "not set", es: "sin definir", pt: "não definido" },
   "common.home": { en: "Home", es: "Inicio", pt: "Início" },
   "common.calendar": { en: "Calendar", es: "Calendario", pt: "Calendário" },
   "common.progress": { en: "Progress", es: "Progreso", pt: "Progresso" },

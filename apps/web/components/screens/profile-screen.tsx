@@ -1,9 +1,11 @@
 "use client";
 
-import { CONNECTION_PROVIDER_ORDER, ConnectionStatus } from "@carbadapt/contracts";
+import { CONNECTION_PROVIDER_ORDER, ConnectionStatus, HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TypeChip } from "@/components/ui";
 import { addDays, formatDay, formatNumber, todayKey } from "@/lib/format";
 import { displayJson } from "@/lib/json";
@@ -11,10 +13,14 @@ import {
   parseConflicts,
   parseConnections,
   parseContainers,
+  parseDeleted,
   parseGut,
+  parseGutPreview,
   parseMe,
+  parsePhysical,
   parseProducts,
   parseRaces,
+  parseStarting,
   parseWorkouts,
 } from "@/lib/parse";
 
@@ -176,7 +182,8 @@ function countGear(containers: { type: string }[]) {
 }
 
 export function AccountScreen() {
-  const { token, t } = useApp();
+  const { token, t, logout } = useApp();
+  const router = useRouter();
   const me = useGet(token ? "/me" : null, parseMe);
   const [ask, setAsk] = useState(false);
   if (!token)
@@ -214,7 +221,17 @@ export function AccountScreen() {
             <button type="button" className="choice" onClick={() => setAsk(false)}>
               {t("common.cancel")}
             </button>
-            <button type="button" className="bt" onClick={() => setAsk(false)}>
+            <button
+              type="button"
+              className="bt"
+              onClick={() => {
+                if (!token) return;
+                void apiSend("/me", { method: "DELETE", token, parse: parseDeleted }).then(() => {
+                  logout();
+                  router.push("/");
+                });
+              }}
+            >
               {t("acct.delete")}
             </button>
           </div>
@@ -240,6 +257,7 @@ export function ConnectionsScreen() {
   const { token, t } = useApp();
   const connections = useGet(token ? "/connections" : null, parseConnections);
   const [local, setLocal] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   if (!token)
     return (
       <Screen title={t("conn.title")} tabs>
@@ -257,6 +275,7 @@ export function ConnectionsScreen() {
     <Screen title={t("conn.title")} back="/profile" tabs>
       <Preview />
       <p className="mu">{t("conn.preview")}</p>
+      {error ? <ErrorText code={error} /> : null}
       {[...connections.data.connections]
         .sort((a, b) => providerRank(a.provider) - providerRank(b.provider))
         .map((row) => {
@@ -270,7 +289,25 @@ export function ConnectionsScreen() {
               <button
                 type="button"
                 className="pill"
-                onClick={() => setLocal((current) => ({ ...current, [row.provider]: !connected }))}
+                onClick={() => {
+                  const next = !connected;
+                  void apiSend(`/connections/${row.provider}`, {
+                    method: next ? "POST" : "DELETE",
+                    token,
+                    parse: (value) => {
+                      if (!value || typeof value !== "object" || !("connected" in value)) {
+                        throw new ApiError(HttpErrorCode.InternalError);
+                      }
+                      return value;
+                    },
+                  })
+                    .then(() => setLocal((current) => ({ ...current, [row.provider]: next })))
+                    .catch((caught: unknown) => {
+                      setError(
+                        caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError,
+                      );
+                    });
+                }}
               >
                 {connected ? t("status.disconnect") : t("status.connect")}
               </button>
@@ -363,7 +400,39 @@ export function PhysicalScreen() {
             <span>{t(FIELDS.find((row) => row[0] === editing)?.[1] ?? "phys.weight")}</span>
             <input value={draft} onChange={(event) => setDraft(event.target.value)} />
           </label>
-          <button type="button" className="bt" onClick={() => setEditing(null)}>
+          <button
+            type="button"
+            className="bt"
+            onClick={() => {
+              if (!token || !editing) return;
+              if (editing === "sweat" || editing === "zones") {
+                setEditing(null);
+                return;
+              }
+              const numeric = Number(draft.replace(/[^0-9.]/g, ""));
+              const body =
+                editing === "sex"
+                  ? { sex: draft }
+                  : editing === "weight"
+                    ? { weightKg: numeric }
+                    : editing === "ftp"
+                      ? { ftpW: Math.round(numeric) }
+                      : editing === "gh"
+                        ? { ghTolerance: Math.round(numeric) }
+                        : editing === "hr"
+                          ? { maxHr: Math.round(numeric) }
+                          : editing === "age"
+                            ? { age: Math.round(numeric) }
+                            : { heightCm: Math.round(numeric) };
+              if (editing !== "sex" && !Number.isFinite(numeric)) return;
+              void apiSend("/me/physical-data", {
+                method: "PATCH",
+                token,
+                body,
+                parse: parsePhysical,
+              }).then(() => window.location.reload());
+            }}
+          >
             {t("common.done")}
           </button>
         </div>
@@ -394,7 +463,20 @@ export function PhysicalScreen() {
           </button>
           <p className="mu">{t("phys.pick")}</p>
           <Preview />
-          <button type="button" className="bt" onClick={() => setKept(kept)}>
+          <button
+            type="button"
+            className="bt"
+            disabled={kept !== "manual" && kept !== "synced"}
+            onClick={() => {
+              if (!token || (kept !== "manual" && kept !== "synced")) return;
+              void apiSend(`/me/conflicts/${conflict.id}/resolve`, {
+                method: "POST",
+                token,
+                body: { resolvedWith: kept },
+                parse: (value) => value,
+              }).then(() => window.location.reload());
+            }}
+          >
             {t("phys.keep")}
           </button>
         </div>
@@ -445,7 +527,17 @@ export function ModePlanScreen() {
       <button
         type="button"
         className={chosen === "GUT_TRAINING" ? "choice sel" : "choice"}
-        onClick={() => setMode("GUT_TRAINING")}
+        onClick={() => {
+          setMode("GUT_TRAINING");
+          if (token) {
+            void apiSend("/me", {
+              method: "PATCH",
+              token,
+              body: { mode: "GUT_TRAINING" },
+              parse: parseMe,
+            });
+          }
+        }}
       >
         <span>
           <b>{t("mode.GUT_TRAINING")}</b>
@@ -455,7 +547,17 @@ export function ModePlanScreen() {
       <button
         type="button"
         className={chosen === "FUEL_MY_WORKOUTS" ? "choice sel" : "choice"}
-        onClick={() => setMode("FUEL_MY_WORKOUTS")}
+        onClick={() => {
+          setMode("FUEL_MY_WORKOUTS");
+          if (token) {
+            void apiSend("/me", {
+              method: "PATCH",
+              token,
+              body: { mode: "FUEL_MY_WORKOUTS" },
+              parse: parseMe,
+            });
+          }
+        }}
       >
         <span>
           <b>{t("mode.FUEL_MY_WORKOUTS")}</b>
@@ -577,6 +679,34 @@ export function ModePlanScreen() {
             </div>
           ))}
           {!plan ? <p className="mu">{t("plan.noPlan")}</p> : null}
+          <button
+            type="button"
+            className="bt"
+            onClick={() => {
+              const startGh = plan?.startGh ?? me?.physical?.ghTolerance ?? null;
+              const targetDate = date || plan?.targetDate || "";
+              if (!token || startGh == null || !targetDate) return;
+              const body = {
+                targetKind: "DATE" as const,
+                targetDate,
+                startGh,
+                goalGh: shownGoal,
+                sessionsPerWeek: null,
+              };
+              void apiSend("/gut-plan/preview", {
+                method: "POST",
+                token,
+                body,
+                parse: parseGutPreview,
+              }).then(() =>
+                apiSend("/gut-plan", { method: "PUT", token, body, parse: parseGut }).then(() =>
+                  window.location.reload(),
+                ),
+              );
+            }}
+          >
+            {t("common.save")}
+          </button>
         </>
       )}
     </Screen>
@@ -716,6 +846,44 @@ export function EstimateScreen() {
       {unknown ? (
         <p className="m">{t("est.fallbackValue", { gh: formatNumber(fallback, locale) })}</p>
       ) : null}
+      <button
+        type="button"
+        className="bt"
+        onClick={() => {
+          if (!token) return;
+          const entries = unknown
+            ? []
+            : rows.flatMap((row) => {
+                const pick = picks[row.id];
+                if (!pick || !row.durationMin) return [];
+                const product = list.find((item) => item.id === pick.productId);
+                if (!product) return [];
+                return [
+                  {
+                    carbsG: product.carbsG * pick.servings,
+                    durationMin: row.durationMin,
+                    symptom: pick.mild ? ("MILD" as const) : ("MODERATE" as const),
+                  },
+                ];
+              });
+          void apiSend("/gut-plan/starting-point", {
+            method: "POST",
+            token,
+            body: { entries },
+            parse: parseStarting,
+          }).then((result) => {
+            if (result.gh == null) return;
+            return apiSend("/me/physical-data", {
+              method: "PATCH",
+              token,
+              body: { ghTolerance: result.gh },
+              parse: parsePhysical,
+            }).then(() => window.location.assign("/profile/mode-plan"));
+          });
+        }}
+      >
+        {t("common.save")}
+      </button>
     </Screen>
   );
 }

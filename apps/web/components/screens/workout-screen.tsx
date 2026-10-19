@@ -1,9 +1,11 @@
 "use client";
 
 import type { Workout } from "@carbadapt/contracts";
+import { HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { BurstMark, IntakeMark } from "@/components/illustrations";
 import {
   CarryLine,
@@ -21,7 +23,10 @@ import {
   parseAchievements,
   parseContainers,
   parseFeedback,
+  parseFueling,
   parseGut,
+  parseSweatTest,
+  parseSweatTests,
   parseWorkout,
 } from "@/lib/parse";
 
@@ -71,6 +76,15 @@ export function WorkoutScreen({ id }: { id: string }) {
   const gutPlan = gut.status === "ready" ? gut.data.plan : null;
   const planGh = plan?.targetGPerH ?? null;
   const shownGh = localGh ?? planGh;
+  function adjustGh(next: number) {
+    setLocalGh(next);
+    void apiSend(`/workouts/${id}/fueling-plan`, {
+      method: "PATCH",
+      token,
+      body: { targetGPerH: next },
+      parse: parseFueling,
+    }).catch(() => undefined);
+  }
   const unstructured = row.workoutType == null && row.kind !== "SWEAT_TEST";
   let minute = 0;
 
@@ -144,7 +158,7 @@ export function WorkoutScreen({ id }: { id: string }) {
               <div className="stepper">
                 <button
                   type="button"
-                  onClick={() => setLocalGh(Math.max(0, (shownGh ?? 0) - 10))}
+                  onClick={() => adjustGh(Math.max(0, (shownGh ?? 0) - 10))}
                   aria-label="-"
                 >
                   −
@@ -156,11 +170,7 @@ export function WorkoutScreen({ id }: { id: string }) {
                     g/h
                   </span>
                 </b>
-                <button
-                  type="button"
-                  onClick={() => setLocalGh((shownGh ?? 0) + 10)}
-                  aria-label="+"
-                >
+                <button type="button" onClick={() => adjustGh((shownGh ?? 0) + 10)} aria-label="+">
                   +
                 </button>
               </div>
@@ -307,6 +317,8 @@ export function QuestionnaireScreen({ id }: { id: string }) {
   const feedback = useGet(token ? `/workouts/${id}/feedback` : null, parseFeedback);
   const containers = useGet(token ? "/containers" : null, parseContainers);
   const achievements = useGet(token ? "/achievements" : null, parseAchievements);
+  const sweatTests = useGet(token ? "/sweat-tests" : null, parseSweatTests);
+  const [saveError, setSaveError] = useState<HttpErrorCode | null>(null);
   const [step, setStep] = useState(0);
   const [carbs, setCarbs] = useState<number | null>(null);
   const [fluid, setFluid] = useState<number | null>(null);
@@ -371,9 +383,52 @@ export function QuestionnaireScreen({ id }: { id: string }) {
   const current = steps[step] ?? "carbs";
   const last = step >= steps.length - 1;
 
-  function finish() {
-    if (pending) window.location.assign(`/celebration/${pending.id}`);
-    else window.location.assign("/home");
+  async function finish() {
+    if (!token) return;
+    setSaveError(null);
+    try {
+      await apiSend(`/workouts/${id}/feedback`, {
+        method: "POST",
+        token,
+        body: {
+          intakeCarbsG: shownCarbs,
+          fluidMl: shownFluid,
+          symptomUpper: symptom,
+          symptomLower: symptom,
+          symptomSystemic: symptom,
+          feeling: FEELINGS[feeling] ?? "q.steady",
+          followedPrompts: followed === "yes" ? true : followed === "no" ? false : null,
+        },
+        parse: parseFeedback,
+      });
+      if (sweat && sweatTests.status === "ready") {
+        const test = sweatTests.data.sweatTests.find(
+          (item) => item.workoutId === id && item.startedAt && item.endedAt == null,
+        );
+        const post = Number(postKg);
+        const urineMl = Number(urine);
+        if (test && Number.isFinite(post) && post > 0) {
+          await apiSend(`/sweat-tests/${test.id}/complete`, {
+            method: "POST",
+            token,
+            body: {
+              postWeightKg: post,
+              fluidMl: shownFluid,
+              urineMl: Number.isFinite(urineMl) ? urineMl : 0,
+            },
+            parse: parseSweatTest,
+          });
+        }
+      }
+      const list = await apiSend("/achievements", { token, parse: parseAchievements });
+      const created =
+        list.achievements.find((item) => item.workoutId === id && item.celebratedAt == null) ??
+        pending;
+      if (created) window.location.assign(`/celebration/${created.id}`);
+      else window.location.assign("/home");
+    } catch (caught: unknown) {
+      setSaveError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    }
   }
 
   return (
@@ -543,11 +598,12 @@ export function QuestionnaireScreen({ id }: { id: string }) {
           </div>
         </>
       ) : null}
+      {saveError ? <ErrorText code={saveError} /> : null}
       <button
         type="button"
         className="bt"
         onClick={() => {
-          if (last) finish();
+          if (last) void finish();
           else setStep((value) => value + 1);
         }}
       >
@@ -588,9 +644,21 @@ export function CelebrationScreen({ id }: { id: string }) {
         <p className="ey">{t("celeb.kicker")}</p>
         <h1 className="h2">{t("celeb.title")}</h1>
       </div>
-      <Link href="/home" className="bt">
+      <button
+        type="button"
+        className="bt"
+        onClick={() => {
+          void apiSend(`/achievements/${id}/celebrated`, {
+            method: "POST",
+            token,
+            parse: (value) => value,
+          }).finally(() => {
+            window.location.assign("/home");
+          });
+        }}
+      >
         {t("common.done")}
-      </Link>
+      </button>
       <Preview />
     </Screen>
   );

@@ -14,7 +14,8 @@ import {
   SweatCard,
   TypeChip,
 } from "@/components/ui";
-import { addDays, formatDay, formatDuration, formatNumber, todayKey } from "@/lib/format";
+import { labeledAmount } from "@/lib/amounts";
+import { addDays, formatDay, formatDuration, todayKey } from "@/lib/format";
 import { carryItems } from "@/lib/json";
 import { parseContainers, parseGut, parseHome, parseRaces, parseWorkouts } from "@/lib/parse";
 
@@ -193,15 +194,33 @@ export function HomeScreen() {
             <BigStats
               items={[
                 {
-                  value: formatNumber(hero.fuelingPlan.totalCarbsG, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "carbStatus",
+                    hero.fuelingPlan.totalCarbsG,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.gCarbs"),
                 },
                 {
-                  value: formatNumber(hero.fuelingPlan.totalFluidMl, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "fluidStatus",
+                    hero.fuelingPlan.totalFluidMl,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.mlFluid"),
                 },
                 {
-                  value: formatNumber(hero.fuelingPlan.totalSodiumMg, locale),
+                  value: labeledAmount(
+                    hero.fuelingPlan.carryList,
+                    "sodiumStatus",
+                    hero.fuelingPlan.totalSodiumMg,
+                    locale,
+                    t("common.notSet"),
+                  ),
                   label: t("common.mgSodium"),
                 },
               ]}

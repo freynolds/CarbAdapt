@@ -1,17 +1,9 @@
-import { BreakfastNote, FIXTURE_ENGINE_VERSION } from "@carbadapt/contracts";
+import { BreakfastNote } from "@carbadapt/contracts";
+import { ENGINE_VERSION, raceBreakfast } from "@carbadapt/engine";
 import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
-import { hourInZone } from "../../../../http/calendar.js";
 import { day, toNumber } from "../../../../http/values.js";
 import type { ModuleDeps } from "../../../deps.js";
 import type { CarbLoadingService } from "../../carb-loading.service.js";
-
-/**
- * Mock breakfast rule carried from the local mock phase.
- * A start before 08:00 in the athlete's zone uses 1.5 g/kg. Any other start uses 2 g/kg.
- * Fluid is 5 ml/kg, all of it the demo isotonic at 800 mg sodium per liter.
- * The M3 engine replaces this. Nothing is stored.
- */
-const DRINK_SODIUM_MG_PER_L = 800;
 
 function loadingDayKey(raw: string): "D_MINUS_2" | "D_MINUS_1" {
   const key = raw.toUpperCase().replace(/-/g, "_");
@@ -53,27 +45,19 @@ export function createMockCarbLoadingService(deps: ModuleDeps): CarbLoadingServi
       if (weight == null) {
         throw new HttpError(HttpErrorCode.WeightRequired);
       }
-      const early = race.startAt ? hourInZone(race.startAt, user.timezone) < 8 : false;
-      const gPerKg = early ? 1.5 : 2;
-      const carbsG = Math.round(gPerKg * weight);
-      const fluidMl = Math.round(5 * weight);
-      const sodiumMg = Math.round((DRINK_SODIUM_MG_PER_L * fluidMl) / 1000);
+      const breakfast = raceBreakfast(weight);
       return {
-        engineVersion: FIXTURE_ENGINE_VERSION,
+        engineVersion: ENGINE_VERSION,
         derived: true as const,
-        earlyStart: early,
-        gPerKg,
-        carbsG,
-        fluidMl,
-        isotonicMl: fluidMl,
-        waterMl: 0 as const,
-        sodiumMg,
-        drinkSodiumMgPerL: DRINK_SODIUM_MG_PER_L,
-        note: early
-          ? BreakfastNote.Early
-          : race.startAt
-            ? BreakfastNote.Default
-            : BreakfastNote.MissingStart,
+        earlyStart: breakfast.earlyStart,
+        gPerKg: breakfast.gPerKg,
+        carbsG: breakfast.carbsG,
+        fluidMl: breakfast.fluidMl,
+        isotonicMl: breakfast.isotonicMl,
+        waterMl: breakfast.waterMl,
+        sodiumMg: breakfast.sodiumMg,
+        drinkSodiumMgPerL: breakfast.drinkSodiumMgPerL,
+        note: BreakfastNote.Standard,
       };
     },
   };

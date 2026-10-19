@@ -1,3 +1,4 @@
+import { deleteMe, patchMe, patchPhysical, resolveConflict } from "../../../../domain/commands.js";
 import { iso } from "../../../../http/values.js";
 import { presentPhysical, presentUser } from "../../../../http/present.js";
 import type { ModuleDeps } from "../../../deps.js";
@@ -38,5 +39,9 @@ export function createMockProfileService(deps: ModuleDeps): ProfileService {
         })),
       };
     },
+    patchMe: (userId, body) => patchMe(db, userId, body),
+    deleteMe: (userId) => deleteMe(db, userId),
+    patchPhysical: (userId, body) => patchPhysical(db, userId, body),
+    resolveConflict: (userId, id, body) => resolveConflict(db, userId, id, body),
   };
 }

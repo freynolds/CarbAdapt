@@ -1,3 +1,4 @@
+import { submitFeedback } from "../../../../domain/commands.js";
 import { HttpError, HttpErrorCode } from "../../../../http/errors.js";
 import { presentLog } from "../../../../http/present.js";
 import type { ModuleDeps } from "../../../deps.js";
@@ -13,5 +14,6 @@ export function createMockQuestionnaireService(deps: ModuleDeps): QuestionnaireS
       if (!workout) throw new HttpError(HttpErrorCode.WorkoutNotFound);
       return { log: workout.feedback ? presentLog(workout.feedback) : null };
     },
+    submitFeedback: (userId, workoutId, body) => submitFeedback(deps.db, userId, workoutId, body),
   };
 }

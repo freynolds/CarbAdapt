@@ -1,13 +1,15 @@
 "use client";
 
-import { DataProvider } from "@carbadapt/contracts";
+import { DataProvider, HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/app-state";
-import { BigStats, Preview, Screen } from "@/components/ui";
+import { BigStats, ErrorText, Preview, Screen } from "@/components/ui";
+import { ApiError, apiSend } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import { readAnswers, roughCarbsPerHour } from "@/lib/onboarding";
+import { parseMagicSent, parseSession } from "@/lib/parse";
 
 export function SignupScreen() {
   const { t, athletes, athleteId, login } = useApp();
@@ -87,18 +89,67 @@ export function LoginScreen() {
 }
 
 export function MagicScreen() {
-  const { t } = useApp();
+  const { t, acceptSession } = useApp();
+  const router = useRouter();
+  const params = useSearchParams();
+  const token = params.get("token");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancel = false;
+    setBusy(true);
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    apiSend("/auth/magic-link/verify", {
+      method: "POST",
+      body: { token, timezone },
+      parse: parseSession,
+    })
+      .then(async (body) => {
+        if (cancel) return;
+        await acceptSession(body.token, body.user.id);
+        router.push("/home");
+      })
+      .catch((caught: unknown) => {
+        if (cancel) return;
+        setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+        setBusy(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [token, acceptSession, router]);
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiSend("/auth/magic-link", {
+        method: "POST",
+        body: { email },
+        parse: parseMagicSent,
+      });
+      setSent(true);
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Screen kicker={t("auth.magic")} title={t("auth.magic")} back="/login">
       <Preview />
       <p className="mu">{t("auth.magicHelp")}</p>
+      {error ? <ErrorText code={error} /> : null}
       <label className="field">
-        <span>Email</span>
+        <span>{t("acct.email")}</span>
         <input value={email} type="email" onChange={(event) => setEmail(event.target.value)} />
       </label>
-      <button type="button" className="bt" onClick={() => setSent(true)}>
+      <button type="button" className="bt" disabled={busy} onClick={() => void send()}>
         {t("auth.send")}
       </button>
       {sent ? <p className="note">{t("auth.sent")}</p> : null}
@@ -146,8 +197,8 @@ export function ReportScreen() {
       <BigStats
         items={[
           { value: shown.hours || "—", label: t("rep.hours") },
-          { value: "—", label: t("rep.kcal") },
-          { value: ghLabel, label: t("rep.carbs") },
+          { value: t("common.notSet"), label: t("rep.kcal") },
+          { value: gh == null ? t("common.notSet") : ghLabel, label: t("rep.carbs") },
         ]}
       />
       <p className="ey">{t("rep.vs")}</p>
@@ -157,7 +208,7 @@ export function ReportScreen() {
           <span>{t("rep.you")}</span>
         </div>
         <div>
-          <b>—</b>
+          <b>{t("common.notSet")}</b>
           <span>{t("rep.recommended")}</span>
         </div>
       </div>
@@ -176,10 +227,10 @@ export function ReportScreen() {
           <BigStats
             items={[
               { value: ghLabel, label: t("rep.now") },
-              { value: "—", label: t("rep.target") },
+              { value: t("common.notSet"), label: t("rep.target") },
             ]}
           />
-          <p className="mu">{t("rep.gap", { gap: "—" })}</p>
+          <p className="mu">{t("rep.gap", { gap: t("common.notSet") })}</p>
         </>
       )}
       <Link href="/home" className="bt">

@@ -401,7 +401,7 @@ function CarbsStep() {
           <p className="m">
             {t("on.roughMath", { gels: answers.gels || "0", bottles: answers.bottles || "0" })}
           </p>
-          {rough != null ? <p className="big">{formatNumber(rough, locale)}</p> : null}
+          <p className="big">{rough != null ? formatNumber(rough, locale) : t("common.notSet")}</p>
           <p className="note">
             <b>{t("on.why")}</b>
             {t("on.why4b")}

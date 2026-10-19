@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./runner": "./src/domain/runner.ts"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts",
     "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",
@@ -12,6 +15,8 @@
   "dependencies": {
     "@carbadapt/contracts": "*",
     "@carbadapt/db": "*",
+    "@carbadapt/engine": "*",
+    "@carbadapt/integrations": "*",
     "@prisma/client": "~6.19.2",
     "express": "^5.1.0",
     "zod": "^4.1.0"

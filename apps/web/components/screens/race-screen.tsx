@@ -1,9 +1,12 @@
 "use client";
 
-import { BreakfastNote, SWEAT_RATE_FORMULA } from "@carbadapt/contracts";
+import { HttpErrorCode, SWEAT_RATE_FORMULA } from "@carbadapt/contracts";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { durationMinutes, zonedLocalToIso } from "@/lib/amounts";
+import { ApiError, apiSend } from "@/lib/api";
 import {
   BigStats,
   CarryLine,
@@ -28,8 +31,11 @@ const SPORTS = ["road", "gravel", "trail"] as const;
 
 export function RaceFormScreen({ id }: { id?: string }) {
   const { token, t, locale, me } = useApp();
+  const router = useRouter();
   const zone = me?.user.timezone ?? "UTC";
   const existing = useGet(token && id ? `/races/${id}` : null, parseRace);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [duration, setDuration] = useState("5:30");
@@ -43,6 +49,90 @@ export function RaceFormScreen({ id }: { id?: string }) {
   const [editingAid, setEditingAid] = useState<number | null>(null);
   const row = existing.status === "ready" ? existing.data.race : null;
   const showMulti = multi ?? Boolean(row?.isMultiStage);
+
+  async function save() {
+    if (!token) return;
+    const raceName = name || row?.name || "";
+    const raceDate = date || row?.date || "";
+    const minutes = durationMinutes(
+      duration || (row ? formatDuration(row.estimatedDurationMin) : ""),
+    );
+    if (!raceName || !raceDate || minutes == null) {
+      setError(HttpErrorCode.InvalidRequest);
+      return;
+    }
+    const stageRows = showMulti
+      ? row?.stages.length
+        ? row.stages.flatMap((stage) => {
+            if (!stage.date || !stage.startAt) return [];
+            return [
+              {
+                date: stage.date,
+                startAt: stage.startAt,
+                estimatedDurationMin: stage.estimatedDurationMin,
+                type: stage.type,
+              },
+            ];
+          })
+        : stages.flatMap((stage) => {
+            const stageMinutes = durationMinutes(stage.duration);
+            const startAt = stage.date
+              ? zonedLocalToIso(stage.date, stage.start || "00:00", zone)
+              : null;
+            if (!stage.date || stageMinutes == null || !startAt) return [];
+            return [
+              {
+                date: stage.date,
+                startAt,
+                estimatedDurationMin: stageMinutes,
+                type: sport,
+              },
+            ];
+          })
+      : [];
+    if (showMulti && stageRows.length === 0) {
+      setError(HttpErrorCode.InvalidRequest);
+      return;
+    }
+    const distanceKm = Number(distance || (row?.distanceKm != null ? String(row.distanceKm) : ""));
+    const elevationGainM = Number(
+      elevation || (row?.elevationGainM != null ? String(row.elevationGainM) : ""),
+    );
+    const body = {
+      name: raceName,
+      date: raceDate,
+      estimatedDurationMin: minutes,
+      type: sport,
+      distanceKm: Number.isFinite(distanceKm) ? distanceKm : null,
+      elevationGainM: Number.isFinite(elevationGainM) ? Math.round(elevationGainM) : null,
+      carbLoading: loading,
+      isMultiStage: showMulti,
+      stages: stageRows,
+      aidStations: showMulti
+        ? []
+        : aids.flatMap((aid) => {
+            const kmMark = Number(aid.km);
+            if (!Number.isFinite(kmMark)) return [];
+            return [{ kmMark, hasWater: aid.water, hasIsotonic: aid.iso, hasGels: aid.gels }];
+          }),
+    };
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await apiSend(id ? `/races/${id}` : "/races", {
+        method: id ? "PATCH" : "POST",
+        token,
+        body,
+        parse: parseRace,
+      });
+      router.push(`/races/${saved.race.id}/strategy`);
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!token) {
     return (
       <Screen title={t("race.add")} back="/home">
@@ -211,7 +301,8 @@ export function RaceFormScreen({ id }: { id?: string }) {
           onClose={() => setEditingAid(null)}
         />
       ) : null}
-      <button type="button" className="bt">
+      {error ? <ErrorText code={error} /> : null}
+      <button type="button" className="bt" disabled={busy} onClick={() => void save()}>
         {t("race.save")}
       </button>
     </Screen>
@@ -313,7 +404,17 @@ export function StrategyScreen({ id }: { id: string }) {
             <input value={km} onChange={(event) => setKm(event.target.value)} />
           </label>
           <p className="mu">{t("race.noPlans")}</p>
-          <button type="button" className="bt">
+          <button
+            type="button"
+            className="bt"
+            onClick={() => {
+              void apiSend(`/races/${id}/strategies/generate`, {
+                method: "POST",
+                token,
+                parse: parseRace,
+              }).then(() => window.location.reload());
+            }}
+          >
             {t("race.generate")}
           </button>
         </>
@@ -350,7 +451,14 @@ export function StrategyScreen({ id }: { id: string }) {
                 <button
                   type="button"
                   className={chosen === plan.id ? "bt" : "choice"}
-                  onClick={() => setPicked(plan.id)}
+                  onClick={() => {
+                    setPicked(plan.id);
+                    void apiSend(`/races/${id}/strategies/${plan.id}/choose`, {
+                      method: "POST",
+                      token,
+                      parse: parseRace,
+                    });
+                  }}
                 >
                   {plan.chosen ? t("race.chosen") : t("race.use")}
                 </button>
@@ -421,7 +529,17 @@ export function LoadingScreen({ id, day }: { id: string; day: string }) {
           {dismissed ? (
             <p className="mu">{t("load.dismissHelp")}</p>
           ) : (
-            <button type="button" className="gh" onClick={() => setDismissed(true)}>
+            <button
+              type="button"
+              className="gh"
+              onClick={() => {
+                void apiSend(`/races/${id}/rehearsal/dismiss`, {
+                  method: "POST",
+                  token,
+                  parse: parseRace,
+                }).then(() => setDismissed(true));
+              }}
+            >
               {t("load.dismiss")}
             </button>
           )}
@@ -511,36 +629,33 @@ export function BreakfastScreen({ id }: { id: string }) {
       </Screen>
     );
   const row = breakfast.data;
-  const note =
-    row.note === BreakfastNote.Early
-      ? t("brk.early")
-      : row.note === BreakfastNote.MissingStart
-        ? t("brk.missingStart")
-        : t("brk.default");
+  const missing = t("common.notSet");
+  const amount = (value: number | null) => (value == null ? missing : formatNumber(value, locale));
   return (
     <Screen title={t("brk.title")} back="/calendar">
       <p className="ey">{t("brk.carbs")}</p>
       <p className="big">
-        {formatNumber(row.carbsG, locale)}
+        {row.carbsG == null ? missing : formatNumber(row.carbsG, locale)}
         <span style={{ fontSize: 18 }}> g</span>
       </p>
-      <p className="mu">{t("load.perKg", { g: row.gPerKg })}</p>
-      <p>{note}</p>
+      <p className="mu">{row.gPerKg == null ? missing : t("load.perKg", { g: row.gPerKg })}</p>
+      <p>{row.note}</p>
+      <p>{t("brk.early")}</p>
       <p>{t("brk.alarm")}</p>
       <BigStats
         items={[
-          { value: formatNumber(row.fluidMl, locale), label: t("brk.fluid") },
-          { value: formatNumber(row.sodiumMg, locale), label: t("brk.sodium") },
+          { value: amount(row.fluidMl), label: t("brk.fluid") },
+          { value: amount(row.sodiumMg), label: t("brk.sodium") },
         ]}
       />
       <div className="cd">
         <div className="rw" style={{ justifyContent: "space-between" }}>
           <span>{t("brk.isotonic")}</span>
-          <b className="m">{formatNumber(row.isotonicMl, locale)} ml</b>
+          <b className="m">{amount(row.isotonicMl)} ml</b>
         </div>
         <div className="rw" style={{ justifyContent: "space-between" }}>
           <span>{t("brk.water")}</span>
-          <b className="m">{formatNumber(row.waterMl, locale)} ml</b>
+          <b className="m">{amount(row.waterMl)} ml</b>
         </div>
       </div>
       <p className="preview">{t("brk.derived")}</p>
@@ -624,7 +739,16 @@ export function RecoveryScreen({ raceId, stageId }: { raceId: string; stageId: s
       <button
         type="button"
         className={on ? "choice sel" : "choice"}
-        onClick={() => setSensitive(!on)}
+        onClick={() => {
+          const next = !on;
+          setSensitive(next);
+          void apiSend(`/races/stages/${stageId}/recovery`, {
+            method: "PATCH",
+            token,
+            body: { sensitiveStomach: next },
+            parse: parseRecovery,
+          });
+        }}
       >
         <span>
           <b>{t("rec.sensitive")}</b>
@@ -742,7 +866,18 @@ export function SweatScreen({ id }: { id: string }) {
           <button
             type="button"
             className="bt"
-            onClick={() => setPhase(row.sweatRateLPerH != null ? "result" : "protocol")}
+            onClick={() => {
+              const preWeightKg = Number(
+                kg || (row.preWeightKg != null ? String(row.preWeightKg) : ""),
+              );
+              if (!Number.isFinite(preWeightKg) || preWeightKg <= 0) return;
+              void apiSend(`/sweat-tests/${id}/start`, {
+                method: "POST",
+                token,
+                body: { preWeightKg },
+                parse: parseSweatTest,
+              }).then(() => setPhase("protocol"));
+            }}
           >
             {t("sweat.start")}
           </button>

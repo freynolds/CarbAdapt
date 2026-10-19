@@ -761,3 +761,27 @@ model Notification {
 
   @@index([status, scheduledAt])
 }
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// MySQL-polled queue. Redis is not required for local runs.
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  runAt       DateTime
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lastError   String?   @db.Text
+  dedupeKey   String?   @unique
+  lockedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, runAt])
+}

@@ -1,12 +1,16 @@
 "use client";
 
 import type { Workout } from "@carbadapt/contracts";
+import { HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
 import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, TypeChip } from "@/components/ui";
-import { addDays, formatDay, formatDuration, formatNumber, todayKey } from "@/lib/format";
-import { parseRaces, parseSweatTests, parseWorkouts } from "@/lib/parse";
+import { labeledAmount } from "@/lib/amounts";
+import { ApiError, apiSend } from "@/lib/api";
+import { addDays, formatDay, formatDuration, todayKey } from "@/lib/format";
+import { manualSport, readAnswers } from "@/lib/onboarding";
+import { parseRaces, parseSweatTests, parseWorkout, parseWorkouts } from "@/lib/parse";
 
 type Row = {
   key: string;
@@ -192,7 +196,21 @@ function metaFor(
     return `${duration} · ${t("cal.ghTarget", { gh: workout.fuelingPlan.targetGPerH })}`;
   }
   if (workout.fuelingPlan) {
-    return `${duration} · ${formatNumber(workout.fuelingPlan.totalCarbsG, locale)} g · ${formatNumber(workout.fuelingPlan.totalFluidMl, locale)} ml`;
+    const carbs = labeledAmount(
+      workout.fuelingPlan.carryList,
+      "carbStatus",
+      workout.fuelingPlan.totalCarbsG,
+      locale,
+      t("common.notSet"),
+    );
+    const fluid = labeledAmount(
+      workout.fuelingPlan.carryList,
+      "fluidStatus",
+      workout.fuelingPlan.totalFluidMl,
+      locale,
+      t("common.notSet"),
+    );
+    return `${duration} · ${carbs} g · ${fluid} ml`;
   }
   return duration;
 }
@@ -208,12 +226,41 @@ const TYPE_LABEL = {
 } as const;
 
 export function ManualWorkoutScreen() {
-  const { t } = useApp();
+  const { token, t, locale } = useApp();
   const [date, setDate] = useState("");
   const [hours, setHours] = useState("2");
   const [minutes, setMinutes] = useState("00");
   const [type, setType] = useState<(typeof TYPES)[number]>("BASE");
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<Workout | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+
+  async function save() {
+    if (!token || !date) return;
+    const durationMin = Number(hours) * 60 + Number(minutes);
+    if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const body = await apiSend("/workouts", {
+        method: "POST",
+        token,
+        body: {
+          name: t(TYPE_LABEL[type]),
+          sport: manualSport(readAnswers()),
+          workoutType: type,
+          plannedDate: date,
+          durationMin,
+        },
+        parse: parseWorkout,
+      });
+      setSaved(body.workout);
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (saved) {
     return (
@@ -229,7 +276,28 @@ export function ManualWorkoutScreen() {
           </p>
         </div>
         <p className="ey">{t("man.carry")}</p>
-        <p className="mu">{t("man.noPlan")}</p>
+        {saved.fuelingPlan ? (
+          <p className="mu">
+            {labeledAmount(
+              saved.fuelingPlan.carryList,
+              "carbStatus",
+              saved.fuelingPlan.totalCarbsG,
+              locale,
+              t("common.notSet"),
+            )}{" "}
+            g ·{" "}
+            {labeledAmount(
+              saved.fuelingPlan.carryList,
+              "fluidStatus",
+              saved.fuelingPlan.totalFluidMl,
+              locale,
+              t("common.notSet"),
+            )}{" "}
+            ml
+          </p>
+        ) : (
+          <p className="mu">{t("man.noPlan")}</p>
+        )}
         <div className="note">
           <b>{t("dev.get")}</b>
           {t("man.device")}
@@ -277,7 +345,9 @@ export function ManualWorkoutScreen() {
           </button>
         ))}
       </div>
-      <button type="button" className="bt" onClick={() => setSaved(true)}>
+      {error ? <ErrorText code={error} /> : null}
+      {!token ? <NeedSignIn /> : null}
+      <button type="button" className="bt" disabled={busy || !token} onClick={() => void save()}>
         {t("common.save")}
       </button>
     </Screen>

@@ -1,6 +1,6 @@
 # @carbadapt/db
 
-Prisma schema, the generated client, and migrations. MySQL 8.4 runs in Docker from the repo-root `docker-compose.yml`. The client is re-exported from `src/index.ts` so the rest of the repo has one import path.
+Prisma schema, the generated client, and migrations. Local MySQL 8.x is created with `sql/create-local-user.sql`. Docker Compose in the repo root is an optional way to get that same server. The client is re-exported from `src/index.ts` so the rest of the repo has one import path.
 
 ## What goes here
 
@@ -34,7 +34,7 @@ The plan's §3 schema is the base. [PR #2](https://github.com/freynolds/CarbAdap
 
 PR #2 used Prisma 5.22 and generated the client into `packages/db/src/generated/client`. This repo stays on Prisma 6.19, which still keeps `url = env("DATABASE_URL")` in the schema. The generator has no custom `output`, so `src/index.ts` keeps importing `PrismaClient` from `@prisma/client`. The initial migration is regenerated with Prisma 6.19. The seed uses that same client. It does not use the generated folder from PR #2.
 
-`docker/mysql-init.sql` grants the local MySQL user privileges beyond its own database so `prisma migrate dev` can create a shadow database. The image stays `mysql:8.4`, bound to `127.0.0.1`. The grant applies only when the data volume is created.
+`sql/create-local-user.sql` creates database `carbadapt` and the `carbadapt` user for a native MySQL 8.x. The grant is `ALL PRIVILEGES ON *.*` so `prisma migrate dev` can create its shadow database and `migrate reset` can drop `carbadapt`. `docker/mysql-init.sql` is the same grant for the optional Compose user, and it applies only when that data volume is created. The image stays `mysql:8.4`, bound to `127.0.0.1`.
 
 ## Milestone
 

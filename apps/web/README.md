@@ -2,18 +2,18 @@
 
 Next.js App Router UI. It renders screens and calls `apps/api`. It does not own product rules or the database.
 
-This step shows a placeholder at `/` so the process can be started. It is not a CarbAdapt screen.
+`/` replaces itself with `/home`. Screens read the mock API with the bearer token from `POST /dev/login-as`. Browser calls go to `/backend`, which Next rewrites to the API (`API_URL`, default `http://127.0.0.1:4000`). A dev bar above the column switches the demo athlete, locale, and theme. Forms that would write are local preview state and say so. The desktop layout is a centered 390px column, which is an assumption called out in that bar.
 
 ## Layout
 
-| Path          | Role                                                                                                                                          |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/`        | Routes. Only `/` exists. The route table in the build plan (`/home`, `/calendar`, `/workouts/[id]`, …) is added with the screens, not before. |
-| `components/` | React components. `scaffold-home.tsx` is the placeholder. Extracted phones go in `components/screens/`.                                       |
-| `lib/`        | The API client and other non-visual helpers. `lib/api.ts` exports the API base URL and does not fetch.                                        |
-| `public/`     | Static files that are not imported, including self-hosted fonts once they are extracted.                                                      |
+| Path          | Role                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `app/`        | Routes listed below. Dynamic params are awaited (`Promise` in Next 16).                                                        |
+| `components/` | `app-state.tsx` holds the session. `components/screens/` holds one client screen per route group.                              |
+| `lib/`        | `api.ts` fetches and maps `HttpErrorCode` through `HTTP_ERROR_MESSAGE`. `parse.ts` checks responses with the contract schemas. |
+| `app/fonts/`  | Self-hosted woff2 files. Latin subsets are loaded with `next/font/local`. `OFL.txt` is the license.                            |
 
-`next.config.ts` stays UI-only. Do not add route handlers that stand in for `apps/api`.
+`next.config.ts` stays UI-only. Do not add route handlers that stand in for `apps/api`. `next dev` uses webpack so the `.js` import suffixes inside `packages/contracts` and `packages/i18n` resolve to the TypeScript sources. Turbopack does not apply that alias.
 
 Next writes `next-env.d.ts` on `next dev` and on `next typegen`. That file is gitignored. In Next 16 the two commands point it at different generated type paths, so committing it would leave a permanent diff. `npm run typecheck` runs `next typegen` before `tsc`.
 
@@ -23,15 +23,36 @@ Next writes `next-env.d.ts` on `next dev` and on `next typegen`. That file is gi
 - Prisma calls (`packages/db` is reached through the API).
 - Provider tokens, OAuth, or webhook handling.
 - The design-tool runtime packed inside `design/carbadapt-screens.html` (see below).
-- Hard-coded colors once `packages/design-tokens` has the real values. The placeholder CSS uses a few hex values on purpose, under `--scaffold-*` names, so it is obvious they are not the token package.
+- A second copy table. Visible strings go through `@carbadapt/i18n`. API error sentences stay `HTTP_ERROR_MESSAGE`.
+
+## Routes
+
+| Path                                                                                       | Screen                                                                                        |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `/`                                                                                        | Redirects to `/home`                                                                          |
+| `/onboarding/[step]`                                                                       | `welcome`, `sport`, `weight`, `effort`, `carbs`, `fuel`, `sweat`, `gut`, `briefing`, `device` |
+| `/onboarding/mode`                                                                         | Gut training on top, fuel my workouts below                                                   |
+| `/signup`, `/login`, `/auth/magic`, `/auth/callback/[provider]`                            | Demo sign-in. Providers are not connected.                                                    |
+| `/report`                                                                                  | Starting point from the onboarding answers kept in `sessionStorage`                           |
+| `/home`, `/calendar`, `/calendar/new`                                                      | Today, calendar, manual workout preview                                                       |
+| `/workouts/[id]`, `/workouts/[id]/questionnaire`, `/celebration/[achievementId]`           | Plan, questionnaire preview, celebration                                                      |
+| `/progress`, `/profile`, `/profile/account`                                                | Progress, profile, account                                                                    |
+| `/profile/mode-plan`, `/profile/mode-plan/estimate`                                        | Mode and plan, g/h estimate preview                                                           |
+| `/profile/physical-data`                                                                   | Physical data and conflict picker preview                                                     |
+| `/profile/gear`, `/profile/gear/new`, `/profile/gear/[id]`, `/profile/gear/[id]/calibrate` | Gear and calibration preview                                                                  |
+| `/profile/products`, `/profile/products/new`, `/profile/products/[id]`                     | Library, label-scan preview, detail                                                           |
+| `/profile/connections`, `/profile/subscription`                                            | Connections preview, black subscription placeholder                                           |
+| `/sweat-test/[id]`                                                                         | Protocol, weight, push copy, result                                                           |
+| `/races/new`, `/races/[id]/edit`, `/races/[id]/strategy`                                   | Race form and strategy                                                                        |
+| `/races/[id]/loading/[day]`                                                                | `d-2`, `d-1`, or `rehearsal`                                                                  |
+| `/races/[id]/breakfast`                                                                    | Breakfast derived by the API                                                                  |
+| `/races/[id]/stages/[stageId]/recovery`                                                    | Between-stage recovery                                                                        |
 
 ## Milestone
 
-| When       | What lands                                                                    |
-| ---------- | ----------------------------------------------------------------------------- |
-| This step  | Placeholder page, folder boundaries                                           |
-| Rest of M0 | Design tokens and the EN/ES/PT pipeline, wired in but not yet every screen    |
-| M2         | Every route from the plan, in EN/ES/PT and light/dark, filled by the mock API |
+| When      | What lands                                                              |
+| --------- | ----------------------------------------------------------------------- |
+| This step | Every route above, EN/ES/PT, light/dark, filled by the mock API on read |
 
 Login, Connections, and Subscription stay visual until their real behavior is scheduled (M3/M4, and post-MVP for payments).
 
@@ -77,14 +98,14 @@ Leave `dc-runtime` and the packed React 18 in the HTML file. The Next app uses i
 
 Board 4 is labeled **earlier draft** in the gallery. It repeats gear and calibration that boards 3 and 5–7 draw again in the token stylesheet. Treat board 4 as non-canonical unless Francisco says otherwise.
 
-Onboarding (boards 1–2) never uses the CSS variables. Its palette is the same family (ink `#101A2B`, paper `#F4F1EA`, glucose `#C6F135`) but a few surfaces differ (`#182640`, `#C9D2E0`). Keep that stylesheet separate until those frames are moved onto the variables. Do not concatenate the two stylesheets: both define `.p` and `.m`, with different rules.
+Onboarding (boards 1–2) never used the CSS variables. Its palette is the same family, plus note surfaces `#182640` and `#C9D2E0`. Those frames now use the token variables (`--note`, `--note-tx`). Board 4 stays ignored.
 
-### Extraction steps (later PRs, not this one)
+### How the screens were taken from the file
 
 1. **Unpack offline.** A Node script parses the root manifest, gunzips each page, and writes one HTML file per board under something like `design/boards/` (generated, not hand-edited). Re-run it when the HTML export is replaced. The script is a dev tool, not a runtime dependency.
 2. **Split phones.** Each `<div class="p">` (or `class="p lt"`) is one screen state. Map it to a route from the build plan using the gallery title and the kicker text inside the frame (for example `QUESTION 1 OF 7`, `TODAY · FUELING`). The gallery order is not the URL map.
 3. **Turn a phone into a server component** under `components/screens/`, rendered by the matching `app/` route. Drop the gallery chrome: the dark board background `#0A1220`, the fixed 390×844 box, and the 44px radius. Those exist so the frames can sit side by side in the review file.
-4. **Desktop.** The build plan's open proposal is a centered column about 390px wide, because every frame is an iPhone layout and no desktop layout was designed. The app screen should fill the mobile viewport (`100dvh`) rather than a rounded artboard. Confirm that proposal before coding layout.
+4. **Desktop.** The screens use a centered column about 390px wide, because every frame is an iPhone layout and no desktop layout was designed. The column fills the mobile viewport (`100dvh`) rather than a rounded artboard. That choice is an assumption and is labeled in the dev bar.
 5. **CSS.** Lift the token stylesheet once, from a board that defines both `.p` and `.lt` (board 8 does). Put component classes in a CSS module or a single app stylesheet. Do not paste a copy of the style block into every component.
 6. **Tokens.** Move colors, type, and radii into `packages/design-tokens`, then have this app consume CSS variables. Variable names already used on `.p`, with `.lt` overriding them:
 
@@ -107,6 +128,4 @@ Onboarding (boards 1–2) never uses the CSS variables. Its palette is the same 
      The comment at the top of the HTML is the SIL Open Font License for all three families (Bricolage Grotesque, DM Sans, JetBrains Mono). Keep that comment, or the OFL text, next to any extracted font files. The same comment warns that Google Fonts subsets can be incomplete. Latin-ext covers Spanish and Portuguese accents; if a glyph is missing when catalogs are filled, replace that family with the full OFL font.
 8. **Icons.** Tab and gear icons are inline `<symbol>` sprites, copied into each board (`ih`, `ic`, `ip`, `ipg`, `sb`, `sf`, `sl`, `sg`, `sp`, `sc`, `sd`). Hoist them once into `components/icons`. The design tool rewrote `viewBox` to `sc-camel-view-box` so its parser would keep the attribute. Rename it back to `viewBox`, and use React's camelCase SVG props (`strokeWidth`, `strokeLinecap`).
 9. **Copy.** Visible strings are the English source for `packages/i18n`. Do not translate them during extraction. British spellings in this HTML (`fuelling`, `litre`, `Diarrhoea`, and the same kind of variant) are normalized to US English (`fueling`, `liter`, `diarrhea`) during extraction. That is the copy convention in the root README and `packages/i18n/README.md`.
-10. **Behavior.** Buttons, sheets, and steppers in the HTML are drawings. Wire them to routes and the mock API in M2. Do not execute `dc-runtime` to get interactivity.
-
-The placeholder page already uses the welcome-frame mark, with `viewBox` restored, so the rename in step 8 is visible on one SVG. That is the only markup taken from the design in this step.
+10. **Behavior.** Reads come from the mock API. Writes, OAuth, OCR, notifications, and the fueling engine are not implemented. Do not execute `dc-runtime`.

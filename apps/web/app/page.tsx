@@ -1,5 +1,12 @@
-import { ScaffoldHome } from "@/components/scaffold-home";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Page() {
-  return <ScaffoldHome />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/home");
+  }, [router]);
+  return null;
 }

@@ -1,0 +1,78 @@
+/*
+ * Brand tokens extracted from design/carbadapt-screens.html.
+ * Dark values come from .p. Light values come from .lt.
+ * Glucose buttons, Ember, and workout chips were raw hex in the HTML.
+ */
+
+:root {
+  --ca-night: #101a2b;
+  --ca-glucose: #c6f135;
+  --ca-ember: #ff6a3d;
+  --ca-tarmac: #2b3a55;
+  --ca-bone: #f4f1ea;
+  --ca-white: #ffffff;
+  --ca-muted-dark: #a3b0c4;
+  --ca-muted-light: #5b6880;
+  --ca-icon-light: #e7e2d6;
+  --ca-line-dark: #3c4d6c;
+  --ca-line-light: #e1dccf;
+  --ca-note: #182640;
+  --ca-note-text: #c9d2e0;
+  --ca-ink: #101a2b;
+  --ca-chip-base: #4da3ff;
+  --ca-chip-threshold: #ffc845;
+  --ca-chip-vo2: #d96cff;
+  --ca-chip-recovery: #3ddc97;
+  --ca-chip-anaerobic: #ff8fb1;
+  --ca-symptom-none: #3ddc97;
+  --ca-symptom-mild: #c6f135;
+  --ca-symptom-moderate: #ffc845;
+  --ca-symptom-severe: #ff6a3d;
+  --ca-black: #000000;
+  --radius-card: 20px;
+  --radius-control: 14px;
+  --radius-button: 27px;
+  --radius-pill: 999px;
+  --column: 390px;
+  --bg: var(--ca-night);
+  --cd: var(--ca-tarmac);
+  --tx: var(--ca-bone);
+  --mu: var(--ca-muted-dark);
+  --ac: var(--ca-glucose);
+  --ib: var(--ca-bone);
+  --ln: var(--ca-line-dark);
+  --stage: #0a1220;
+  --note: var(--ca-note);
+  --note-tx: var(--ca-note-text);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: var(--ca-bone);
+  --cd: var(--ca-white);
+  --tx: var(--ca-night);
+  --mu: var(--ca-muted-light);
+  --ac: var(--ca-night);
+  --ib: var(--ca-icon-light);
+  --ln: var(--ca-line-light);
+  --stage: #e7e2d6;
+  --note: var(--ca-white);
+  --note-tx: var(--ca-muted-light);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --bg: var(--ca-bone);
+    --cd: var(--ca-white);
+    --tx: var(--ca-night);
+    --mu: var(--ca-muted-light);
+    --ac: var(--ca-night);
+    --ib: var(--ca-icon-light);
+    --ln: var(--ca-line-light);
+    --stage: #e7e2d6;
+    --note: var(--ca-white);
+    --note-tx: var(--ca-muted-light);
+    color-scheme: light;
+  }
+}

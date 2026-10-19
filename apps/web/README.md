@@ -2,7 +2,7 @@
 
 Next.js App Router UI. It renders screens and calls `apps/api`. It does not own product rules or the database.
 
-`/` replaces itself with `/home`. Screens read the mock API with the bearer token from `POST /dev/login-as`. Browser calls go to `/backend`, which Next rewrites to the API (`API_URL`, default `http://127.0.0.1:4000`). A dev bar above the column switches the demo athlete, locale, and theme. Forms that would write are local preview state and say so. The desktop layout is a centered 390px column, which is an assumption called out in that bar.
+`/` replaces itself with `/home`. Screens read the mock API with the bearer token from `POST /dev/login-as`. Browser calls go to `/backend`, which Next rewrites to the API (`API_URL`, default `http://127.0.0.1:4050`). `npm run dev` and `npm start` bind `127.0.0.1:3050`. A dev bar above the column switches the demo athlete, locale, and theme. Forms that would write are local preview state and say so. The desktop layout is a centered 390px column, which is an assumption called out in that bar.
 
 ## Layout
 

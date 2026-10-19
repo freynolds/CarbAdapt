@@ -2,6 +2,8 @@
 
 The HTTP API. One Express process, shared later by the web app, iOS, and Garmin. Domain code lives in modules. Each module has a mock, a staging, and a production implementation, chosen at startup from `APP_ENV`.
 
+`src/index.ts` binds `API_HOST` and `API_PORT` from the root `.env`. The Zod defaults are `127.0.0.1` and `4050`. There is no CORS allowlist and no cookie origin list.
+
 ## Layout
 
 | Path                  | Role                                                                                   |

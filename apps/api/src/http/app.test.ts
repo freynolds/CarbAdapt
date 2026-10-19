@@ -11,6 +11,13 @@ function isNotImplemented(error: unknown): boolean {
   return error instanceof HttpError && error.code === HttpErrorCode.NotImplemented;
 }
 
+test("config defaults bind the API to 127.0.0.1:4050", () => {
+  const config = readConfig({});
+  assert.equal(config.API_HOST, "127.0.0.1");
+  assert.equal(config.API_PORT, 4050);
+  assert.equal(readConfig({ API_PORT: "4051" }).API_PORT, 4051);
+});
+
 test("GET /health stays up in mock mode", async () => {
   await withApp(async ({ baseUrl }) => {
     const { status, body } = await getJson(`${baseUrl}/health`);

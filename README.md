@@ -10,8 +10,8 @@ Two processes and MySQL:
 
 | Process    | Role                                                                              | Port             |
 | ---------- | --------------------------------------------------------------------------------- | ---------------- |
-| `apps/web` | Next.js UI. Renders screens and calls the API.                                    | `127.0.0.1:3000` |
-| `apps/api` | Express API, one module per domain. Zod validates config and JSON.                | `127.0.0.1:4000` |
+| `apps/web` | Next.js UI. Renders screens and calls the API.                                    | `127.0.0.1:3050` |
+| `apps/api` | Express API, one module per domain. Zod validates config and JSON.                | `127.0.0.1:4050` |
 | MySQL 8.x  | Application data, via Prisma in `packages/db`. Native server, or optional Docker. | `127.0.0.1:3306` |
 
 The API is separate from Next.js so the same server can later hold sessions, webhooks, and the device API without living inside the web deploy. A worker process is added in M4 for queues and timers. It is not running now.
@@ -89,11 +89,11 @@ npm run dev
 
 `npm install` also generates the Prisma client (`npm run db:generate`). `npm run db:validate` checks the schema without migrating. `npm run db:migrate` applies migrations with `prisma migrate dev` and does not insert rows. `npm run db:seed` replaces application rows with Ana and the USDA foods, using dates relative to the run. `npm run db:reset` drops the database, migrates, and seeds. Both seed and reset can be run twice.
 
-Open the web app at [http://127.0.0.1:3000](http://127.0.0.1:3000). It sends `/` to `/home`. The API liveness check is [http://127.0.0.1:4000/health](http://127.0.0.1:4000/health) and returns `{"status":"ok"}`.
+Open the web app at [http://127.0.0.1:3050](http://127.0.0.1:3050). It sends `/` to `/home`. The API liveness check is [http://127.0.0.1:4050/health](http://127.0.0.1:4050/health) and returns `{"status":"ok"}`.
 
 `npm run dev` runs web and api together. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run format:check` cover the workspace.
 
-`.env.example` uses `carbadapt` / `carbadapt` on database `carbadapt` at `127.0.0.1:3306`. Those passwords are for this local database only. MySQL 8 authenticates with `caching_sha2_password`, which Prisma 6 supports, so the URL has no auth parameter. The optional Compose file reads `.env` for `MYSQL_*` substitution. Prisma commands load the same file. Next.js does not load the root `.env` into the browser. The web app calls `/backend`, and `next.config.ts` rewrites that to `API_URL` or `http://127.0.0.1:4000`.
+`.env.example` uses `carbadapt` / `carbadapt` on database `carbadapt` at `127.0.0.1:3306`. Those passwords are for this local database only. MySQL 8 authenticates with `caching_sha2_password`, which Prisma 6 supports, so the URL has no auth parameter. The optional Compose file reads `.env` for `MYSQL_*` substitution. Prisma commands load the same file. Next.js does not load the root `.env` into the browser. The web app calls `/backend`, and `next.config.ts` rewrites that to `API_URL` or `http://127.0.0.1:4050`.
 
 ## Copy
 

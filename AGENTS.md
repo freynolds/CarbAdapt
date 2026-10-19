@@ -1,5 +1,9 @@
 # Agent instructions
 
+## Local ports
+
+The web dev and start scripts bind `127.0.0.1:3050`. The API binds `API_HOST` and `API_PORT`; the Zod defaults are `127.0.0.1` and `4050`. Next rewrites `/backend` to `API_URL`, which defaults to `http://127.0.0.1:4050`.
+
 ## HTTP errors
 
 Client-visible API failures go through the typed HTTP error helper. Do not send an error with `res.status(...).json(...)`, and do not `throw new Error` for a failure the client should see.

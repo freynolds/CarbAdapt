@@ -7,7 +7,7 @@ export type AppEnv = z.infer<typeof appEnvSchema>;
 const configSchema = z.object({
   APP_ENV: appEnvSchema.default("mock"),
   API_HOST: z.string().min(1).default("127.0.0.1"),
-  API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  API_PORT: z.coerce.number().int().min(1).max(65535).default(4050),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

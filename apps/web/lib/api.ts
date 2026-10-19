@@ -4,7 +4,7 @@ import { HTTP_ERROR_MESSAGE, HttpErrorCode, type HttpErrorBody } from "@carbadap
  * Browser calls go to `/backend`, which Next rewrites to apps/api.
  * The token from POST /dev/login-as is sent as Authorization: Bearer.
  */
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4000";
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4050";
 
 const CODES = new Set<string>(Object.values(HttpErrorCode));
 

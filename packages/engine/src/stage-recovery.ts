@@ -33,6 +33,49 @@ function overnightBand(durationMin: number, sport: StageSport): Range & { trailR
   return { ...band, trailRaised: false };
 }
 
+export type RecoveryOccasion = {
+  key: "middle" | "first" | "pre_start" | "day";
+  /** Minutes after the stage ends. The middle of a short gap is this value. */
+  offsetMin: number | null;
+  form: "meal" | "snack" | "drink";
+  /** 1 means this occasion carries the whole carb target. Null means the split is not set. */
+  carbShare: number | null;
+};
+
+/**
+ * Between-stage eating is meals, snacks, and drinks.
+ * A gap under 4 hours is one occasion in the middle of the gap.
+ * Under 90 minutes that occasion is a drink (liquids and gels only).
+ * Longer gaps name the occasions the handoff already describes. Their gram
+ * split stays unset.
+ */
+export function recoveryOccasions(input: {
+  gap: GapCase | null;
+  gapMin: number | null;
+  liquidsAndGelsOnly: boolean;
+}): RecoveryOccasion[] {
+  if (input.gap === "UNDER_4H") {
+    return [
+      {
+        key: "middle",
+        offsetMin: input.gapMin == null ? null : Math.round(input.gapMin / 2),
+        form: input.liquidsAndGelsOnly ? "drink" : "snack",
+        carbShare: 1,
+      },
+    ];
+  }
+  if (input.gap === "H4_TO_12H") {
+    return [
+      { key: "first", offsetMin: null, form: "meal", carbShare: null },
+      { key: "pre_start", offsetMin: null, form: "meal", carbShare: null },
+    ];
+  }
+  if (input.gap === "OVERNIGHT" || input.gap === "REST_DAY") {
+    return [{ key: "day", offsetMin: null, form: "meal", carbShare: null }];
+  }
+  return [];
+}
+
 export type StageRecoveryResult = {
   gapCase: GapCase | null;
   gapMin: number | null;

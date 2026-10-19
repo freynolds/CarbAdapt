@@ -75,7 +75,10 @@ export function adapt(input: {
   logsNewestFirst: AdaptationInputLog[];
   advancesThisWeek: number;
   weekKey: string;
+  /** Size of the current ladder step. Defaults to 10 g/h. */
+  stepG?: number;
 }): AdaptationResult {
+  const stepG = input.stepG ?? LADDER_STEP_G;
   const hold = (reason: AdaptationResult["reason"], ids: string[]): AdaptationResult => ({
     outcome: reason === "no_eligible_pair" || reason === "not_eligible" ? "NONE" : "HOLD",
     fromGh: input.currentGh,
@@ -93,7 +96,7 @@ export function adapt(input: {
     return {
       outcome: "STEP_BACK",
       fromGh: input.currentGh,
-      toGh: Math.max(0, input.currentGh - LADDER_STEP_G),
+      toGh: Math.max(0, input.currentGh - stepG),
       inputLogIds: [latest.id],
       reason: "severe",
     };
@@ -105,7 +108,7 @@ export function adapt(input: {
   const pair = free.slice(0, SESSIONS_PER_STEP);
   if (pair.length < SESSIONS_PER_STEP) return hold("no_eligible_pair", pair.map((log) => log.id));
 
-  const next = input.currentGh + LADDER_STEP_G;
+  const next = input.currentGh + stepG;
   if (next > ABOVE_GH_WEEKLY_CAP && input.advancesThisWeek >= 1) {
     return hold("weekly_cap", pair.map((log) => log.id));
   }

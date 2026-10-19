@@ -51,6 +51,8 @@ export type FuelProduct = {
   name: string;
   carbsG: number;
   sodiumMg: number | null;
+  /** Present when the library stores a scoop. Drink mix is counted in scoops then. */
+  scoopG?: number | null;
 };
 
 export type FuelContainer = {
@@ -60,14 +62,22 @@ export type FuelContainer = {
   usualContent: "WATER" | "ISOTONIC" | "GEL_CONCENTRATE";
 };
 
+export type CarryRole = "water" | "drink_mix" | "gel" | "solid" | "unassigned";
+
 export type CarryItem = {
   name: string;
   containerName: string | null;
   containerId: string | null;
   productId: string | null;
+  productName: string | null;
+  /** Servings, scoops, or units of the product in this container. */
   servings: number | null;
+  unit: "serving" | "scoop" | "unit" | null;
+  volumeMl: number | null;
+  fluidMl: number | null;
   carryCarbsG: number | null;
   sodiumMg: number | null;
+  role: CarryRole;
 };
 
 export type FuelingResult = {
@@ -114,65 +124,220 @@ export function fuelingPlan(input: {
       ? Math.max(0, roundInt(input.sweatRateLPerH * hours(duration) * 1000))
       : 0;
 
-  const items: CarryItem[] = [];
-  let drinkMixGPerMl: number | null = null;
-  let sodium = 0;
-  let sodiumKnown = false;
-
-  const drink = input.products.find((item) => item.type === "DRINK_MIX");
-  const bottle = input.containers.find((item) => item.usualContent !== "GEL_CONCENTRATE");
-  if (
-    input.mode === "GUT_TRAINING" &&
-    drink &&
-    bottle &&
-    fluidStatus === "computed" &&
-    carbStatus === "computed" &&
-    drink.carbsG > 0
-  ) {
-    drinkMixGPerMl = GUT_DRINK_G_PER_ML;
-    const drinkCarbs = Math.min(totalCarbsG, roundInt(GUT_DRINK_G_PER_ML * totalFluidMl));
-    const servings = round2(drinkCarbs / drink.carbsG);
-    const sodiumMg = drink.sodiumMg == null ? null : roundInt(servings * drink.sodiumMg);
-    if (sodiumMg != null) {
-      sodium += sodiumMg;
-      sodiumKnown = true;
-    }
-    items.push({
-      name: drink.name,
-      containerName: bottle.name,
-      containerId: bottle.id,
-      productId: drink.id,
-      servings,
-      carryCarbsG: drinkCarbs,
-      sodiumMg,
-    });
-  }
-
-  for (const container of input.containers) {
-    if (items.some((item) => item.containerId === container.id)) continue;
-    items.push({
-      name: container.name,
-      containerName: container.name,
-      containerId: container.id,
-      productId: null,
-      servings: null,
-      carryCarbsG: null,
-      sodiumMg: null,
-    });
-  }
+  const built = buildCarry({
+    containers: input.containers,
+    products: input.products,
+    mode: input.mode,
+    carbStatus,
+    fluidStatus,
+    totalCarbsG,
+    totalFluidMl,
+  });
 
   return {
     targetGPerH: target,
     band,
     totalCarbsG,
     totalFluidMl,
-    totalSodiumMg: sodiumKnown ? sodium : 0,
+    totalSodiumMg: built.sodiumKnown ? built.sodium : 0,
     carbStatus,
     fluidStatus,
-    sodiumStatus: sodiumKnown ? "computed" : NOT_SET,
+    sodiumStatus: built.sodiumKnown ? "computed" : NOT_SET,
     scheduleStatus: NOT_SET,
     schedule: [],
-    items,
-    drinkMixGPerMl,
+    items: built.items,
+    drinkMixGPerMl: built.drinkMixGPerMl,
   };
+}
+
+function productOf(products: FuelProduct[], type: FuelProduct["type"]): FuelProduct | null {
+  return products.find((item) => item.type === type) ?? null;
+}
+
+function sodiumFor(product: FuelProduct | null, servings: number | null): number | null {
+  if (product?.sodiumMg == null || servings == null) return null;
+  return roundInt(servings * product.sodiumMg);
+}
+
+/**
+ * Every container gets a row. Gut training fills isotonic bottles at ~10% w/v
+ * and puts leftover carbs in a gel flask, then a solid, then an unassigned row.
+ * Fuel mode does not split carbs across containers (that rule is unset). Fluid
+ * fills non-gel containers up to their volume. Leftover fluid is unassigned.
+ */
+function buildCarry(input: {
+  containers: FuelContainer[];
+  products: FuelProduct[];
+  mode: "FUEL_MY_WORKOUTS" | "GUT_TRAINING" | null;
+  carbStatus: SetStatus;
+  fluidStatus: SetStatus;
+  totalCarbsG: number;
+  totalFluidMl: number;
+}): { items: CarryItem[]; sodium: number; sodiumKnown: boolean; drinkMixGPerMl: number | null } {
+  const drink = productOf(input.products, "DRINK_MIX");
+  const gel = productOf(input.products, "GEL");
+  const solid = productOf(input.products, "SOLID");
+  const carbKnown = input.carbStatus === "computed";
+  const fluidKnown = input.fluidStatus === "computed";
+  const gutMix =
+    input.mode === "GUT_TRAINING" && drink != null && carbKnown && fluidKnown && drink.carbsG > 0;
+  let drinkMixGPerMl: number | null = null;
+  if (gutMix) drinkMixGPerMl = GUT_DRINK_G_PER_ML;
+
+  const fluidById = new Map<string, number>();
+  let fluidLeft = fluidKnown ? input.totalFluidMl : 0;
+  if (fluidKnown) {
+    for (const container of input.containers) {
+      if (container.usualContent === "GEL_CONCENTRATE") continue;
+      const take = Math.min(container.capacityMl, Math.max(0, fluidLeft));
+      fluidById.set(container.id, take);
+      fluidLeft -= take;
+    }
+  }
+
+  let carbsLeft = carbKnown ? input.totalCarbsG : 0;
+  const gutCarbsById = new Map<string, number>();
+  if (gutMix && drink) {
+    for (const container of input.containers) {
+      if (container.usualContent !== "ISOTONIC") continue;
+      const fluid = fluidById.get(container.id) ?? 0;
+      const room = roundInt(GUT_DRINK_G_PER_ML * fluid);
+      const carbs = Math.min(carbsLeft, room);
+      gutCarbsById.set(container.id, carbs);
+      carbsLeft -= carbs;
+    }
+  }
+
+  const items: CarryItem[] = [];
+  let gelUsed = false;
+  for (const container of input.containers) {
+    const volumeMl = container.capacityMl;
+    const held = fluidKnown ? (fluidById.get(container.id) ?? 0) : null;
+    if (container.usualContent === "WATER") {
+      items.push({
+        name: container.name,
+        containerName: container.name,
+        containerId: container.id,
+        productId: null,
+        productName: null,
+        servings: null,
+        unit: null,
+        volumeMl,
+        fluidMl: held,
+        carryCarbsG: carbKnown ? 0 : null,
+        sodiumMg: carbKnown ? 0 : null,
+        role: "water",
+      });
+      continue;
+    }
+    if (container.usualContent === "ISOTONIC") {
+      const carbs = gutCarbsById.has(container.id) ? (gutCarbsById.get(container.id) ?? 0) : null;
+      const servings =
+        drink && drink.carbsG > 0 && carbs != null ? round2(carbs / drink.carbsG) : null;
+      items.push({
+        name: drink?.name ?? container.name,
+        containerName: container.name,
+        containerId: container.id,
+        productId: drink?.id ?? null,
+        productName: drink?.name ?? null,
+        servings,
+        unit: drink ? (drink.scoopG != null ? "scoop" : "serving") : null,
+        volumeMl,
+        fluidMl: held,
+        carryCarbsG: carbs,
+        sodiumMg: carbs == null ? null : sodiumFor(drink, servings),
+        role: "drink_mix",
+      });
+      continue;
+    }
+    let carbs: number | null = null;
+    let servings: number | null = null;
+    if (gutMix && !gelUsed && gel && gel.carbsG > 0) {
+      carbs = carbsLeft;
+      if (carbs > 0) carbsLeft = 0;
+      servings = round2(carbs / gel.carbsG);
+      gelUsed = true;
+    }
+    items.push({
+      name: gel?.name ?? container.name,
+      containerName: container.name,
+      containerId: container.id,
+      productId: gel?.id ?? null,
+      productName: gel?.name ?? null,
+      servings,
+      unit: gel ? "unit" : null,
+      volumeMl,
+      fluidMl: fluidKnown ? 0 : null,
+      carryCarbsG: carbs,
+      sodiumMg: carbs == null ? null : sodiumFor(gel, servings),
+      role: "gel",
+    });
+  }
+
+  if (gutMix && carbsLeft > 0 && gel && gel.carbsG > 0 && !gelUsed) {
+    const carbs = carbsLeft;
+    carbsLeft = 0;
+    const servings = round2(carbs / gel.carbsG);
+    items.push({
+      name: gel.name,
+      containerName: null,
+      containerId: null,
+      productId: gel.id,
+      productName: gel.name,
+      servings,
+      unit: "unit",
+      volumeMl: null,
+      fluidMl: fluidKnown ? 0 : null,
+      carryCarbsG: carbs,
+      sodiumMg: sodiumFor(gel, servings),
+      role: "gel",
+    });
+  } else if (gutMix && carbsLeft > 0 && solid && solid.carbsG > 0) {
+    const carbs = carbsLeft;
+    carbsLeft = 0;
+    const servings = round2(carbs / solid.carbsG);
+    items.push({
+      name: solid.name,
+      containerName: null,
+      containerId: null,
+      productId: solid.id,
+      productName: solid.name,
+      servings,
+      unit: "serving",
+      volumeMl: null,
+      fluidMl: fluidKnown ? 0 : null,
+      carryCarbsG: carbs,
+      sodiumMg: sodiumFor(solid, servings),
+      role: "solid",
+    });
+  }
+
+  if ((carbKnown && carbsLeft > 0) || (fluidKnown && fluidLeft > 0)) {
+    items.push({
+      name: "unassigned",
+      containerName: null,
+      containerId: null,
+      productId: null,
+      productName: null,
+      servings: null,
+      unit: null,
+      volumeMl: null,
+      fluidMl: fluidKnown ? fluidLeft : null,
+      carryCarbsG: carbKnown ? carbsLeft : null,
+      sodiumMg: null,
+      role: "unassigned",
+    });
+  }
+
+  let sodium = 0;
+  let sodiumKnown = carbKnown;
+  for (const item of items) {
+    if (item.sodiumMg == null && ((item.carryCarbsG ?? 0) > 0 || (item.fluidMl ?? 0) > 0) && item.role !== "water") {
+      sodiumKnown = false;
+    }
+    sodium += item.sodiumMg ?? 0;
+  }
+  if (!carbKnown) sodiumKnown = false;
+
+  return { items, sodium, sodiumKnown, drinkMixGPerMl };
 }

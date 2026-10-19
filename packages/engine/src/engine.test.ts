@@ -8,8 +8,11 @@ import {
   calibrateSips,
   fuelingPlan,
   ghIncrease,
+  gutRaceAllowed,
   intakePrefill,
+  ladderStepG,
   raceBreakfast,
+  recoveryOccasions,
   stageFallbackAt,
   stageRecovery,
   startingPoint,
@@ -74,7 +77,115 @@ test("gut training uses the ladder step and sweat rate when both exist", () => {
   assert.equal(plan.totalCarbsG, 240);
   assert.equal(plan.totalFluidMl, 3000);
   assert.equal(plan.drinkMixGPerMl, 0.1);
-  assert.equal(plan.items[0]?.carryCarbsG, 240);
+  assert.equal(plan.items[0]?.carryCarbsG, 75);
+  assert.equal(plan.items[0]?.fluidMl, 750);
+  assert.equal(plan.items[0]?.volumeMl, 750);
+  assert.equal(plan.items[0]?.servings, 2.5);
+  const carbs = plan.items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
+  const fluid = plan.items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
+  assert.equal(carbs, 240);
+  assert.equal(fluid, 3000);
+});
+
+test("gut training fills every container and the rows sum to the session", () => {
+  const plan = fuelingPlan({
+    durationMin: 180,
+    sport: "CYCLING",
+    mode: "GUT_TRAINING",
+    currentStepGh: 80,
+    chosenGPerH: null,
+    sweatRateLPerH: 0.9,
+    products: [
+      { id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 400, scoopG: 40 },
+      { id: "gel", type: "GEL", name: "Gel", carbsG: 22, sodiumMg: 40 },
+    ],
+    containers: [
+      { id: "water", name: "White bottle", capacityMl: 750, usualContent: "WATER" },
+      { id: "iso", name: "Glucose bottle", capacityMl: 750, usualContent: "ISOTONIC" },
+      { id: "flask", name: "Ember flask", capacityMl: 150, usualContent: "GEL_CONCENTRATE" },
+    ],
+  });
+  assert.equal(plan.totalCarbsG, 240);
+  assert.equal(plan.totalFluidMl, 2700);
+  const water = plan.items.find((item) => item.containerId === "water");
+  const iso = plan.items.find((item) => item.containerId === "iso");
+  const flask = plan.items.find((item) => item.containerId === "flask");
+  assert.equal(water?.role, "water");
+  assert.equal(water?.fluidMl, 750);
+  assert.equal(water?.carryCarbsG, 0);
+  assert.equal(iso?.productName, "Mix");
+  assert.equal(iso?.unit, "scoop");
+  assert.equal(iso?.carryCarbsG, 75);
+  assert.equal(flask?.productName, "Gel");
+  assert.equal(flask?.carryCarbsG, 165);
+  const carbs = plan.items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
+  const fluid = plan.items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
+  assert.equal(carbs, plan.totalCarbsG);
+  assert.equal(fluid, plan.totalFluidMl);
+});
+
+test("fuel mode lists container products and does not invent carb servings", () => {
+  const plan = fuelingPlan({
+    durationMin: 120,
+    sport: "CYCLING",
+    mode: "FUEL_MY_WORKOUTS",
+    currentStepGh: 80,
+    chosenGPerH: null,
+    sweatRateLPerH: 1,
+    products: [{ id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200 }],
+    containers: [{ id: "iso", name: "Road bottle", capacityMl: 750, usualContent: "ISOTONIC" }],
+  });
+  assert.equal(plan.carbStatus, "not_set");
+  assert.equal(plan.targetGPerH, null);
+  assert.equal(plan.items[0]?.productName, "Mix");
+  assert.equal(plan.items[0]?.servings, null);
+  assert.equal(plan.items[0]?.carryCarbsG, null);
+  assert.equal(plan.items[0]?.fluidMl, 750);
+  assert.equal(plan.items.find((item) => item.role === "unassigned")?.fluidMl, 1250);
+});
+
+test("a 30 g/h gap uses 10 g/h steps and a smaller gap uses 5", () => {
+  assert.equal(ladderStepG(60, 90), 10);
+  assert.deepEqual(
+    buildLadder({
+      startGh: 60,
+      goalGh: 90,
+      today: "2026-10-19",
+      targetDate: "2027-04-19",
+      sessionsPerWeek: null,
+    }).steps.map((step) => step.gh),
+    [70, 80, 90],
+  );
+  assert.equal(ladderStepG(80, 100), 5);
+  assert.deepEqual(
+    buildLadder({
+      startGh: 80,
+      goalGh: 100,
+      today: "2026-10-19",
+      targetDate: "2027-04-19",
+      sessionsPerWeek: null,
+    }).steps.map((step) => step.gh),
+    [85, 90, 95, 100],
+  );
+  assert.equal(ladderStepG(70, 99), 5);
+});
+
+test("a gut-training race has to be at least four weeks ahead", () => {
+  assert.deepEqual(gutRaceAllowed("2026-10-19", "2026-11-16"), { ok: true, reason: null });
+  assert.deepEqual(gutRaceAllowed("2026-10-19", "2026-11-15"), { ok: false, reason: "too_soon" });
+  assert.deepEqual(gutRaceAllowed("2026-10-19", "2026-10-01"), { ok: false, reason: "past" });
+});
+
+test("a gap under four hours is one snack in the middle", () => {
+  const occasions = recoveryOccasions({ gap: "UNDER_4H", gapMin: 180, liquidsAndGelsOnly: false });
+  assert.equal(occasions.length, 1);
+  assert.equal(occasions[0]?.key, "middle");
+  assert.equal(occasions[0]?.offsetMin, 90);
+  assert.equal(occasions[0]?.form, "snack");
+  assert.equal(occasions[0]?.carbShare, 1);
+  const drink = recoveryOccasions({ gap: "UNDER_4H", gapMin: 75, liquidsAndGelsOnly: true });
+  assert.equal(drink[0]?.form, "drink");
+  assert.equal(drink[0]?.offsetMin, 38);
 });
 
 test("60 to 120 g/h in 14 days at two sessions a week is too fast", () => {

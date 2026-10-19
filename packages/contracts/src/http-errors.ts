@@ -36,6 +36,7 @@ export enum HttpErrorCode {
   WebhookInvalid = "webhook_invalid",
   CalibrationInvalid = "calibration_invalid",
   GoalAboveMax = "goal_above_max",
+  RaceTooSoon = "race_too_soon",
 }
 
 export const HTTP_STATUS_BY_CODE: Record<HttpErrorCode, number> = {
@@ -71,6 +72,7 @@ export const HTTP_STATUS_BY_CODE: Record<HttpErrorCode, number> = {
   [HttpErrorCode.WebhookInvalid]: 400,
   [HttpErrorCode.CalibrationInvalid]: 400,
   [HttpErrorCode.GoalAboveMax]: 400,
+  [HttpErrorCode.RaceTooSoon]: 400,
 };
 
 export const HTTP_ERROR_MESSAGE: Record<HttpErrorCode, string> = {
@@ -106,6 +108,7 @@ export const HTTP_ERROR_MESSAGE: Record<HttpErrorCode, string> = {
   [HttpErrorCode.WebhookInvalid]: "Webhook payload was rejected.",
   [HttpErrorCode.CalibrationInvalid]: "Sip calibration needs four weights.",
   [HttpErrorCode.GoalAboveMax]: "The g/h goal cannot be above 200.",
+  [HttpErrorCode.RaceTooSoon]: "That race is not far enough ahead for gut training.",
 };
 
 export interface HttpErrorBody {

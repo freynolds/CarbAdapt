@@ -6,6 +6,11 @@
 export const TBD = {
   /** MVP §7 item 5. A single recommended g/h inside a §7.1 band is not specified. */
   fuelingModeRecommendedGh: null,
+  /**
+   * How a known carb total is divided across containers outside gut training.
+   * Gut training uses the ~10% w/v drink. Fuel mode and race day do not.
+   */
+  fuelModeCarbSplit: null,
   /** Build Plan §11. The 10 mL/kg/h sweat estimate is an unspecified heuristic. */
   sweatEstimateMlPerKgH: null,
   /** Build Plan §11. The 900 mg/L sodium estimate is an unspecified heuristic. */

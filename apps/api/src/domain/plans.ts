@@ -1,5 +1,11 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { ENGINE_VERSION, dailyBriefing, fuelingPlan, type NotificationDraft } from "@carbadapt/engine";
+import {
+  ENGINE_VERSION,
+  dailyBriefing,
+  fuelingPlan,
+  type EngineSport,
+  type NotificationDraft,
+} from "@carbadapt/engine";
 import { day } from "../http/values.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -20,27 +26,45 @@ export async function athleteFuelingContext(db: Db, userId: string) {
   return { user, currentGh: current?.gh ?? null, products, containers };
 }
 
+function productFuel(product: {
+  id: string;
+  type: "DRINK_MIX" | "GEL" | "SOLID";
+  name: string;
+  carbsG: { toString(): string } | number;
+  sodiumMg: number | null;
+  scoopG: { toString(): string } | number | null;
+}) {
+  return {
+    id: product.id,
+    type: product.type,
+    name: product.name,
+    carbsG: Number(product.carbsG),
+    sodiumMg: product.sodiumMg,
+    scoopG: product.scoopG == null ? null : Number(product.scoopG),
+  };
+}
+
 export async function writeFuelingPlan(
   db: Db,
   userId: string,
-  workout: { id: string; sport: "CYCLING" | "RUNNING" | "TRAIL_RUNNING" | "OTHER"; durationMin: number | null },
+  workout: {
+    id: string;
+    sport: "CYCLING" | "RUNNING" | "TRAIL_RUNNING" | "OTHER";
+    durationMin: number | null;
+    stageId?: string | null;
+  },
   chosenGPerH: number | null,
 ) {
   const ctx = await athleteFuelingContext(db, userId);
+  const raceDay = Boolean(workout.stageId);
   const result = fuelingPlan({
     durationMin: workout.durationMin,
     sport: workout.sport,
-    mode: ctx.user.mode,
-    currentStepGh: ctx.currentGh,
+    mode: raceDay ? "FUEL_MY_WORKOUTS" : ctx.user.mode,
+    currentStepGh: raceDay ? null : ctx.currentGh,
     chosenGPerH,
     sweatRateLPerH: ctx.user.physical?.sweatRateLPerH == null ? null : Number(ctx.user.physical.sweatRateLPerH),
-    products: ctx.products.map((product) => ({
-      id: product.id,
-      type: product.type,
-      name: product.name,
-      carbsG: Number(product.carbsG),
-      sodiumMg: product.sodiumMg,
-    })),
+    products: ctx.products.map(productFuel),
     containers: ctx.containers.map((container) => ({
       id: container.id,
       name: container.name,
@@ -73,6 +97,39 @@ export async function writeFuelingPlan(
       userAdjusted: chosenGPerH != null,
       isCurrent: true,
     },
+  });
+}
+
+export function raceSport(type: string): EngineSport {
+  const value = type.toLowerCase();
+  if (value.includes("trail")) return "TRAIL_RUNNING";
+  if (value.includes("run")) return "RUNNING";
+  if (value === "other") return "OTHER";
+  return "CYCLING";
+}
+
+/** Race strategy uses fuel mode. A single g/h inside the band stays unset. */
+export async function raceCarryList(
+  db: Db,
+  userId: string,
+  race: { estimatedDurationMin: number; type: string },
+) {
+  const ctx = await athleteFuelingContext(db, userId);
+  return fuelingPlan({
+    durationMin: race.estimatedDurationMin,
+    sport: raceSport(race.type),
+    mode: "FUEL_MY_WORKOUTS",
+    currentStepGh: null,
+    chosenGPerH: null,
+    sweatRateLPerH:
+      ctx.user.physical?.sweatRateLPerH == null ? null : Number(ctx.user.physical.sweatRateLPerH),
+    products: ctx.products.map(productFuel),
+    containers: ctx.containers.map((container) => ({
+      id: container.id,
+      name: container.name,
+      capacityMl: container.capacityMl,
+      usualContent: container.usualContent,
+    })),
   });
 }
 

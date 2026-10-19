@@ -7,9 +7,10 @@ import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
 import { durationMinutes, zonedLocalToIso } from "@/lib/amounts";
 import { ApiError, apiSend } from "@/lib/api";
+import { RecoveryBlurb } from "@/components/recovery-blurb";
 import {
   BigStats,
-  CarryLine,
+  CarryList,
   ErrorText,
   LoadingText,
   NeedSignIn,
@@ -17,7 +18,7 @@ import {
   Screen,
 } from "@/components/ui";
 import { formatClock, formatDay, formatDuration, formatNumber } from "@/lib/format";
-import { asArray, asNumber, asRecord, asString, intakesOf, mealsOf } from "@/lib/json";
+import { asArray, asRecord, asString, mealsOf } from "@/lib/json";
 import {
   parseBreakfast,
   parseLoading,
@@ -435,19 +436,7 @@ export function StrategyScreen({ id }: { id: string }) {
                 <p className="ey">{t("race.refill")}</p>
                 <p className="m">{kms || "—"}</p>
                 <p className="ey">{t("home.carry")}</p>
-                {asArray(asRecord(plan.carryList)?.items).map((item, itemIndex) => {
-                  const record = asRecord(item);
-                  const name = asString(record?.name) ?? "—";
-                  const servings = asNumber(record?.servings);
-                  return (
-                    <CarryLine
-                      key={itemIndex}
-                      name={name}
-                      kind={name}
-                      detail={servings != null ? `${servings} ×` : undefined}
-                    />
-                  );
-                })}
+                <CarryList plan={plan.carryList} />
                 <button
                   type="button"
                   className={chosen === plan.id ? "bt" : "choice"}
@@ -522,12 +511,50 @@ export function LoadingScreen({ id, day }: { id: string; day: string }) {
     <Screen title={rehearsal ? t("load.rehearsal") : t("load.title")} back="/calendar">
       {rehearsal ? (
         <>
+          <p className="ey">{t("load.what")}</p>
           <p>{t("load.copy.rehearsal")}</p>
+          <p>{t("load.rehearsalBody")}</p>
           {race.data.race.rehearsal?.date ? (
             <p className="m">{formatDay(race.data.race.rehearsal.date, locale, zone)}</p>
           ) : null}
-          {dismissed ? (
-            <p className="mu">{t("load.dismissHelp")}</p>
+          <p className="ey">{t("load.targets")}</p>
+          {race.data.race.loadingDays.length === 0 ? (
+            <p className="mu">{t("common.notSet")}</p>
+          ) : (
+            race.data.race.loadingDays.map((dayRow) => (
+              <div key={dayRow.id} className="cd">
+                <div className="rw" style={{ justifyContent: "space-between" }}>
+                  <b>{dayRow.day === "D_MINUS_2" ? t("load.copy.d2") : t("load.copy.d1")}</b>
+                  <span className="m">{formatNumber(dayRow.targetCarbsG, locale)} g</span>
+                </div>
+                {dayRow.date ? <p className="mu">{formatDay(dayRow.date, locale, zone)}</p> : null}
+              </div>
+            ))
+          )}
+          <p className="ey">{t("load.guidance")}</p>
+          <p>{t("load.fiber")}</p>
+          <p>{t("load.dinner")}</p>
+          <p>{t("load.morning")}</p>
+          {dismissed || race.data.race.rehearsal?.status === "DISMISSED" ? (
+            <>
+              <p className="mu">{t("load.dismissHelp")}</p>
+              <button
+                type="button"
+                className="bt"
+                onClick={() => {
+                  void apiSend(`/races/${id}/rehearsal/restore`, {
+                    method: "POST",
+                    token,
+                    parse: parseRace,
+                  }).then(() => {
+                    setDismissed(false);
+                    window.location.reload();
+                  });
+                }}
+              >
+                {t("load.restore")}
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -699,17 +726,17 @@ export function RecoveryScreen({ raceId, stageId }: { raceId: string; stageId: s
         <p>{t("rec.missing")}</p>
       </Screen>
     );
-  const meals = mealsOf(row.meals);
-  const intakes = intakesOf(row.meals);
   const liquids = asRecord(row.meals)?.liquidsAndGelsOnly === true;
   const on = sensitive ?? row.sensitiveStomach;
   return (
     <Screen title={t("rec.title")} back="/calendar">
       <p className="ey">{t("rec.gap")}</p>
-      <p className="m">
-        {t(`rec.${row.gapCase}`)}
-        {row.gapMin != null ? ` · ${row.gapMin} min` : ""}
-      </p>
+      <RecoveryBlurb
+        gapCase={row.gapCase}
+        gapMin={row.gapMin}
+        carbsTargetG={row.carbsTargetG}
+        meals={row.meals}
+      />
       <p>{t("rec.push")}</p>
       <p className="mu">{t("rec.keep")}</p>
       {race.status === "ready" ? (
@@ -756,34 +783,6 @@ export function RecoveryScreen({ raceId, stageId }: { raceId: string; stageId: s
         </span>
       </button>
       <Preview />
-      {intakes.length > 0 ? (
-        <>
-          <p className="ey">{t("rec.intakes")}</p>
-          {intakes.map((intake) => (
-            <div key={intake.offsetMin} className="rw" style={{ justifyContent: "space-between" }}>
-              <span className="m">{t("rec.offset", { min: intake.offsetMin })}</span>
-              <span>
-                {intake.carbsG ?? "—"} g · {intake.proteinG ?? 0} g
-              </span>
-            </div>
-          ))}
-        </>
-      ) : null}
-      <p className="ey">{t("load.meals")}</p>
-      {meals.meals.map((meal) => (
-        <div key={meal.name} className="cd">
-          <div className="rw" style={{ justifyContent: "space-between" }}>
-            <b>{meal.name}</b>
-            <span className="m">{meal.carbsG ?? "—"} g</span>
-          </div>
-          <p className="mu">{t("load.example")}</p>
-        </div>
-      ))}
-      {meals.guidance.map((line) => (
-        <p key={line} className="mu">
-          {line}
-        </p>
-      ))}
       <p className="note">{t("load.fodmap")}</p>
     </Screen>
   );
@@ -793,8 +792,12 @@ export function SweatScreen({ id }: { id: string }) {
   const { token, t, locale, me } = useApp();
   const zone = me?.user.timezone ?? "UTC";
   const test = useGet(token ? `/sweat-tests/${id}` : null, parseSweatTest);
-  const [phase, setPhase] = useState<"protocol" | "weight" | "pushes" | "result">("protocol");
-  const [kg, setKg] = useState("");
+  const [pre, setPre] = useState("");
+  const [post, setPost] = useState("");
+  const [fluid, setFluid] = useState("");
+  const [urine, setUrine] = useState("0");
+  const [minutes, setMinutes] = useState("60");
+  const [busy, setBusy] = useState(false);
   if (!token)
     return (
       <Screen>
@@ -814,94 +817,16 @@ export function SweatScreen({ id }: { id: string }) {
       </Screen>
     );
   const row = test.data.sweatTest;
-  const done = row.status === "COMPLETED" || phase === "result";
+  const done = row.status === "COMPLETED";
+  const preValue = pre || (row.preWeightKg != null ? String(row.preWeightKg) : "");
+  const postValue = post || (row.postWeightKg != null ? String(row.postWeightKg) : "");
+  const fluidValue = fluid || (row.fluidMl != null ? String(row.fluidMl) : "");
+  const urineValue = urine || (row.urineMl != null ? String(row.urineMl) : "0");
   return (
-    <Screen
-      kicker={t("type.sweat")}
-      title={
-        done
-          ? t("sweat.rate")
-          : phase === "weight"
-            ? t("sweat.weighFirst")
-            : phase === "pushes"
-              ? t("sweat.pushes")
-              : t("sweat.how")
-      }
-      back="/home"
-    >
+    <Screen kicker={t("type.sweat")} title={done ? t("sweat.rate") : t("sweat.how")} back="/home">
       <Preview />
       {row.movedFrom ? (
         <p className="mu">{t("sweat.moved", { date: formatDay(row.movedFrom, locale, zone) })}</p>
-      ) : null}
-      {row.status === "AWAITING_DATA" ? <p>{t("sweat.awaiting")}</p> : null}
-      {!done && phase === "protocol" ? (
-        <>
-          {(["sweat.s1", "sweat.s2", "sweat.s3", "sweat.s4", "sweat.s5", "sweat.s6"] as const).map(
-            (key, index) => (
-              <div key={key} className="rw">
-                <b className="m">{index + 1}</b>
-                <span>{t(key)}</span>
-              </div>
-            ),
-          )}
-          <button type="button" className="bt" onClick={() => setPhase("weight")}>
-            {t("common.continue")}
-          </button>
-          <button type="button" className="gh" onClick={() => setPhase("pushes")}>
-            {t("sweat.pushes")}
-          </button>
-        </>
-      ) : null}
-      {!done && phase === "weight" ? (
-        <>
-          <p>{t("sweat.weighHelp")}</p>
-          <label className="field">
-            <span>kg</span>
-            <input
-              value={kg || (row.preWeightKg != null ? String(row.preWeightKg) : "")}
-              onChange={(event) => setKg(event.target.value)}
-              inputMode="decimal"
-            />
-          </label>
-          <button
-            type="button"
-            className="bt"
-            onClick={() => {
-              const preWeightKg = Number(
-                kg || (row.preWeightKg != null ? String(row.preWeightKg) : ""),
-              );
-              if (!Number.isFinite(preWeightKg) || preWeightKg <= 0) return;
-              void apiSend(`/sweat-tests/${id}/start`, {
-                method: "POST",
-                token,
-                body: { preWeightKg },
-                parse: parseSweatTest,
-              }).then(() => setPhase("protocol"));
-            }}
-          >
-            {t("sweat.start")}
-          </button>
-        </>
-      ) : null}
-      {phase === "pushes" && !done ? (
-        <div className="cd">
-          {(
-            [
-              ["sweat.push.night", "sweat.copy.night"],
-              ["sweat.push.day", "sweat.copy.day"],
-              ["sweat.push.end", "sweat.copy.end"],
-              ["sweat.push.incomplete", "sweat.copy.incomplete"],
-              ["sweat.push.quarterly", "sweat.copy.quarterly"],
-            ] as const
-          ).map(([label, copy]) => (
-            <div key={label}>
-              <p className="ey">{t(label)}</p>
-              <p>
-                <b>CarbAdapt</b> {t(copy)}
-              </p>
-            </div>
-          ))}
-        </div>
       ) : null}
       {done ? (
         <>
@@ -912,12 +837,16 @@ export function SweatScreen({ id }: { id: string }) {
           <p className="mu m">{SWEAT_RATE_FORMULA}</p>
           <div className="bg">
             <div>
-              <b>{row.temperatureC ?? "—"}</b>
-              <span>{t("sweat.temp")}</span>
+              <b>{row.preWeightKg ?? "—"}</b>
+              <span>{t("sweat.pre")}</span>
             </div>
             <div>
-              <b>{row.humidityPct ?? "—"}</b>
-              <span>{t("sweat.humidity")}</span>
+              <b>{row.postWeightKg ?? "—"}</b>
+              <span>{t("sweat.post")}</span>
+            </div>
+            <div>
+              <b>{row.fluidMl ?? "—"}</b>
+              <span>{t("sweat.fluidIn")}</span>
             </div>
           </div>
           <p>{t("sweat.noCompare")}</p>
@@ -925,7 +854,81 @@ export function SweatScreen({ id }: { id: string }) {
             {t("common.done")}
           </Link>
         </>
-      ) : null}
+      ) : (
+        <>
+          {row.status === "NOT_COMPLETED" ? <p>{t("sweat.notDoneState")}</p> : null}
+          {row.status === "AWAITING_DATA" ? <p>{t("sweat.awaiting")}</p> : null}
+          <p>{t("sweat.weighHelp")}</p>
+          <label className="field">
+            <span>{t("sweat.pre")}</span>
+            <input value={preValue} onChange={(event) => setPre(event.target.value)} inputMode="decimal" />
+          </label>
+          <label className="field">
+            <span>{t("sweat.post")}</span>
+            <input value={postValue} onChange={(event) => setPost(event.target.value)} inputMode="decimal" />
+          </label>
+          <label className="field">
+            <span>{t("sweat.fluidIn")}</span>
+            <input value={fluidValue} onChange={(event) => setFluid(event.target.value)} inputMode="numeric" />
+          </label>
+          <label className="field">
+            <span>{t("sweat.urine")}</span>
+            <input value={urineValue} onChange={(event) => setUrine(event.target.value)} inputMode="numeric" />
+          </label>
+          <label className="field">
+            <span>{t("sweat.minutes")}</span>
+            <input value={minutes} onChange={(event) => setMinutes(event.target.value)} inputMode="numeric" />
+          </label>
+          <button
+            type="button"
+            className="bt"
+            disabled={busy}
+            onClick={() => {
+              const preWeightKg = Number(preValue);
+              const postWeightKg = Number(postValue);
+              const fluidMl = Number(fluidValue);
+              const urineMl = Number(urineValue || "0");
+              const durationMin = Number(minutes || "60");
+              if (
+                !Number.isFinite(preWeightKg) ||
+                preWeightKg <= 0 ||
+                !Number.isFinite(postWeightKg) ||
+                postWeightKg <= 0 ||
+                !Number.isFinite(fluidMl) ||
+                fluidMl < 0 ||
+                !Number.isFinite(durationMin) ||
+                durationMin <= 0
+              ) {
+                return;
+              }
+              setBusy(true);
+              void apiSend(`/sweat-tests/${id}/record`, {
+                method: "POST",
+                token,
+                body: { preWeightKg, postWeightKg, fluidMl, urineMl, durationMin },
+                parse: parseSweatTest,
+              }).then(() => window.location.reload());
+            }}
+          >
+            {t("sweat.saveResult")}
+          </button>
+          <button
+            type="button"
+            className="gh"
+            disabled={busy || row.status === "NOT_COMPLETED"}
+            onClick={() => {
+              setBusy(true);
+              void apiSend(`/sweat-tests/${id}/not-completed`, {
+                method: "POST",
+                token,
+                parse: parseSweatTest,
+              }).then(() => window.location.reload());
+            }}
+          >
+            {t("sweat.notDone")}
+          </button>
+        </>
+      )}
     </Screen>
   );
 }

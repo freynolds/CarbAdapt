@@ -9,7 +9,7 @@ import { useApp, useGet } from "@/components/app-state";
 import { ApiError, apiSend } from "@/lib/api";
 import { BurstMark, IntakeMark } from "@/components/illustrations";
 import {
-  CarryLine,
+  CarryList,
   ErrorText,
   LoadingText,
   NeedSignIn,
@@ -18,18 +18,47 @@ import {
   StepSegments,
   TypeChip,
 } from "@/components/ui";
+import { RecoveryBlurb } from "@/components/recovery-blurb";
 import { formatDay, formatDuration, formatNumber } from "@/lib/format";
-import { blocksOf, carryItems, scheduleOf, type BlockRow, type ScheduleMark } from "@/lib/json";
+import { blocksOf, scheduleOf, type BlockRow, type ScheduleMark } from "@/lib/json";
 import {
   parseAchievements,
   parseContainers,
   parseFeedback,
   parseFueling,
   parseGut,
+  parseRaces,
   parseSweatTest,
   parseSweatTests,
   parseWorkout,
 } from "@/lib/parse";
+
+function StageRecovery({
+  stageId,
+  races,
+}: {
+  stageId: string | null;
+  races: { id: string; stages: { id: string; index: number; recovery: { gapCase: string; gapMin: number | null; carbsTargetG: number; meals: unknown } | null }[] }[];
+}) {
+  const { t } = useApp();
+  if (!stageId) return null;
+  for (const race of races) {
+    const stage = race.stages.find((row) => row.id === stageId);
+    if (!stage?.recovery) continue;
+    return (
+      <div className="cd" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className="ey">{t("home.between")}</span>
+        <RecoveryBlurb
+          gapCase={stage.recovery.gapCase}
+          gapMin={stage.recovery.gapMin}
+          carbsTargetG={stage.recovery.carbsTargetG}
+          meals={stage.recovery.meals}
+        />
+      </div>
+    );
+  }
+  return null;
+}
 
 const ZONE_FILL: Record<string, string> = {
   Z1: "#3DDC97",
@@ -45,6 +74,7 @@ export function WorkoutScreen({ id }: { id: string }) {
   const feedback = useGet(token ? `/workouts/${id}/feedback` : null, parseFeedback);
   const gut = useGet(token ? "/gut-plan" : null, parseGut);
   const containers = useGet(token ? "/containers" : null, parseContainers);
+  const races = useGet(token ? "/races" : null, parseRaces);
   const [localGh, setLocalGh] = useState<number | null>(null);
 
   if (!token)
@@ -163,7 +193,8 @@ export function WorkoutScreen({ id }: { id: string }) {
       ) : null}
       {plan ? (
         <>
-          {me?.user.mode === "GUT_TRAINING" && shownGh != null ? (
+          {row.stageId ? <p className="mu">{t("wk.raceFuel")}</p> : null}
+          {me?.user.mode === "GUT_TRAINING" && !row.stageId && shownGh != null ? (
             <div className="cd">
               <p className="ey">{t("wk.target")}</p>
               <div className="stepper">
@@ -198,15 +229,8 @@ export function WorkoutScreen({ id }: { id: string }) {
               +
             </Link>
           </div>
-          {carryItems(plan.carryList).map((item, index) => (
-            <CarryLine
-              key={`${item.name}-${index}`}
-              name={item.name}
-              detail={item.detail}
-              kind={item.kind}
-              color={item.containerId ? colorById.get(item.containerId) : null}
-            />
-          ))}
+          <CarryList plan={plan.carryList} colors={colorById} />
+          <StageRecovery stageId={row.stageId} races={races.status === "ready" ? races.data.races : []} />
         </>
       ) : null}
       {blocks.length > 0 ? (
@@ -217,6 +241,7 @@ export function WorkoutScreen({ id }: { id: string }) {
               <tr>
                 <th>{t("wk.time")}</th>
                 <th>{t("wk.block")}</th>
+                <th>{t("wk.blockDuration")}</th>
                 <th>{t("wk.zone")}</th>
               </tr>
             </thead>
@@ -228,6 +253,7 @@ export function WorkoutScreen({ id }: { id: string }) {
                   <tr key={`${block.name}-${label}`}>
                     <td>{label}</td>
                     <td>{block.name}</td>
+                    <td>{formatDuration(block.durationMin)}</td>
                     <td>{block.zone ?? "—"}</td>
                   </tr>
                 );

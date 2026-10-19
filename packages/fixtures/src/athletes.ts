@@ -285,7 +285,7 @@ function seedAna(bag: SeedData): void {
       plannedStart: start ? clock.at(offset, 8, 0) : null,
       plannedDate: clock.day(offset),
       durationMin: duration,
-      structure: type === "BASE" && duration >= 150 ? blocks(duration) : null,
+      structure: type === "BASE" && duration >= 150 ? longRideBlock(duration) : null,
       status,
       stageId: null,
       sourceUpdatedAt: clock.at(offset, 6, 0),
@@ -725,7 +725,7 @@ function seedBruno(bag: SeedData): void {
       plannedStart: start,
       plannedDate: clock.day(stage.offset),
       durationMin: stage.duration,
-      structure: blocks(stage.duration),
+      structure: stageBlock(stage.duration),
       status: stage.done ? "COMPLETED" : "PLANNED",
       stageId: id,
       sourceUpdatedAt: null,
@@ -1106,7 +1106,7 @@ function seedCarla(bag: SeedData): void {
       plannedStart: stage.start,
       plannedDate: stage.date,
       durationMin: stage.duration,
-      structure: blocks(stage.duration),
+      structure: stageBlock(stage.duration),
       status: stage.done ? "COMPLETED" : "PLANNED",
       stageId: id,
       sourceUpdatedAt: null,
@@ -1674,14 +1674,14 @@ function fuel(
   };
 }
 
-function blocks(durationMin: number) {
-  const warm = Math.min(20, Math.round(durationMin * 0.15));
-  const cool = Math.min(15, Math.round(durationMin * 0.1));
-  return [
-    { name: "Warm-up", durationMin: warm, zone: "Z2" },
-    { name: "Main set", durationMin: Math.max(1, durationMin - warm - cool), zone: "Z2" },
-    { name: "Cool-down", durationMin: cool, zone: "Z1" },
-  ];
+/** A long ride is one steady block, not a warm-up / main set / cool-down split. */
+function longRideBlock(durationMin: number) {
+  return [{ name: "Long ride", durationMin, zone: "Z2" }];
+}
+
+/** A race stage is one effort. A warm-up split is not a stage. */
+function stageBlock(durationMin: number) {
+  return [{ name: "Stage", durationMin, zone: null }];
 }
 
 function connection(

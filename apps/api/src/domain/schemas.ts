@@ -162,6 +162,18 @@ export const sweatStartSchema = z
   })
   .strict();
 
+export const sweatRecordSchema = z
+  .object({
+    preWeightKg: z.number().positive(),
+    postWeightKg: z.number().positive(),
+    fluidMl: z.number().int().nonnegative(),
+    urineMl: z.number().int().nonnegative().optional(),
+    durationMin: z.number().int().positive().optional(),
+    temperatureC: z.number().nullable().optional(),
+    humidityPct: z.number().int().nullable().optional(),
+  })
+  .strict();
+
 export const sweatCompleteSchema = z
   .object({
     postWeightKg: z.number().positive(),

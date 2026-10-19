@@ -32,6 +32,7 @@ export const sweatTestStatusSchema = z.enum([
   "AWAITING_DATA",
   "COMPLETED",
   "RESCHEDULED",
+  "NOT_COMPLETED",
 ]);
 export const planStatusSchema = z.enum(["ACTIVE", "COMPLETED", "ARCHIVED"]);
 export const ladderStepStatusSchema = z.enum(["DONE", "CURRENT", "UPCOMING"]);

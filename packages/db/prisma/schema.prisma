@@ -126,6 +126,7 @@ enum SweatTestStatus {
   AWAITING_DATA
   COMPLETED
   RESCHEDULED // #134 / #154
+  NOT_COMPLETED
 }
 
 enum PlanStatus {

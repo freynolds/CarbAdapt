@@ -5,7 +5,9 @@ import {
   IN_FIELD_VALIDATIONS,
   LADDER_STEP_G,
   MAX_GH,
+  SWEAT_TEST_PROTOCOL_MIN,
   adapt,
+  gutRaceAllowed,
   agreedSymptom,
   buildLadder,
   calibrateSips,
@@ -14,6 +16,7 @@ import {
   ghIncrease,
   loadingGrams,
   raceBreakfastNotification,
+  recoveryOccasions,
   sessionEligible,
   stageNotification,
   stageRecovery,
@@ -45,7 +48,7 @@ import { hashToken, newToken } from "../http/session.js";
 import { iso, toNumber } from "../http/values.js";
 import { rememberMagicLink } from "./magic.js";
 import { buildIntakePrefill } from "./intake-prefill.js";
-import { saveNotification, scheduleBriefing, writeFuelingPlan } from "./plans.js";
+import { raceCarryList, saveNotification, scheduleBriefing, writeFuelingPlan } from "./plans.js";
 import type { z } from "zod";
 import type {
   calibrationBodySchema,
@@ -66,6 +69,7 @@ import type {
   startingPointBodySchema,
   sweatCompleteSchema,
   sweatCreateSchema,
+  sweatRecordSchema,
   sweatStartSchema,
   todoPatchSchema,
   webhookBodySchema,
@@ -536,6 +540,15 @@ async function commitDecision(
   return current;
 }
 
+function stepDelta(steps: { gh: number }[], currentGh: number): number {
+  const ordered = [...steps].map((step) => step.gh).sort((left, right) => left - right);
+  const index = ordered.indexOf(currentGh);
+  if (index > 0) return currentGh - (ordered[index - 1] ?? currentGh);
+  const next = ordered[index + 1];
+  if (index === 0 && next != null) return next - currentGh;
+  return LADDER_STEP_G;
+}
+
 async function applyAdaptation(
   db: Db,
   userId: string,
@@ -567,15 +580,17 @@ async function applyAdaptation(
   const consumed = new Set(
     plan.decisions.flatMap((decision) => decisionLogIds(decision.inputLogIds)),
   );
+  const delta = stepDelta(steps, currentGh);
   const result = adapt({
     currentGh,
     advancesThisWeek,
     weekKey: week,
+    stepG: delta,
     logsNewestFirst: history.map((row) => ({
       id: row.id,
       // An eligible session counts at the step that was current when it was logged.
       // Sessions already used for an advance are not counted again at the new step.
-      gh: consumed.has(row.id) ? currentGh - LADDER_STEP_G : currentGh,
+      gh: consumed.has(row.id) ? currentGh - delta : currentGh,
       symptom: agreedSymptom({
         upper: row.symptomUpper,
         lower: row.symptomLower,
@@ -675,13 +690,15 @@ async function reapplyAdaptation(
   for (const log of logs) {
     const week = weekKey(log.workout.plannedDate);
     const through = logs.filter((row) => row.submittedAt.getTime() <= log.submittedAt.getTime());
+    const delta = stepDelta(steps, currentGh);
     const result = adapt({
       currentGh,
       advancesThisWeek: advancesByWeek.get(week) ?? 0,
       weekKey: week,
+      stepG: delta,
       logsNewestFirst: [...through].reverse().map((row) => ({
         id: row.id,
-        gh: consumed.has(row.id) ? currentGh - LADDER_STEP_G : currentGh,
+        gh: consumed.has(row.id) ? currentGh - delta : currentGh,
         symptom: agreedSymptom({
           upper: row.symptomUpper,
           lower: row.symptomLower,
@@ -713,6 +730,13 @@ async function reapplyAdaptation(
 export async function putGutPlan(db: Db, userId: string, body: z.infer<typeof gutBodySchema>) {
   if (body.goalGh > MAX_GH) throw new HttpError(HttpErrorCode.GoalAboveMax);
   const today = new Date().toISOString().slice(0, 10);
+  if (body.targetKind === "RACE") {
+    if (!body.raceId) throw new HttpError(HttpErrorCode.InvalidRequest);
+    const race = await db.race.findFirst({ where: { id: body.raceId, userId } });
+    if (!race) throw new HttpError(HttpErrorCode.RaceNotFound);
+    const allowed = gutRaceAllowed(today, race.date.toISOString().slice(0, 10));
+    if (!allowed.ok) throw new HttpError(HttpErrorCode.RaceTooSoon);
+  }
   const ladder = buildLadder({
     startGh: body.startGh,
     goalGh: body.goalGh,
@@ -874,6 +898,61 @@ export async function completeSweat(
   return { sweatTest: presentSweat(row) };
 }
 
+export async function recordSweat(
+  db: Db,
+  userId: string,
+  id: string,
+  body: z.infer<typeof sweatRecordSchema>,
+) {
+  const existing = await db.sweatTest.findFirst({ where: { id, userId } });
+  if (!existing) throw new HttpError(HttpErrorCode.SweatTestNotFound);
+  const durationMin = body.durationMin ?? SWEAT_TEST_PROTOCOL_MIN;
+  const endedAt = new Date();
+  const startedAt = existing.startedAt ?? new Date(endedAt.getTime() - durationMin * 60_000);
+  const rate = sweatRateLPerH({
+    preWeightKg: body.preWeightKg,
+    postWeightKg: body.postWeightKg,
+    fluidMl: body.fluidMl,
+    urineMl: body.urineMl ?? 0,
+    durationMin,
+  });
+  const row = await db.sweatTest.update({
+    where: { id },
+    data: {
+      preWeightKg: body.preWeightKg,
+      postWeightKg: body.postWeightKg,
+      fluidMl: body.fluidMl,
+      urineMl: body.urineMl ?? 0,
+      temperatureC: body.temperatureC ?? null,
+      humidityPct: body.humidityPct ?? null,
+      startedAt,
+      endedAt,
+      sweatRateLPerH: rate,
+      status: "COMPLETED",
+    },
+  });
+  if (rate != null) {
+    await db.physicalData.upsert({
+      where: { userId },
+      create: { userId, sweatRateLPerH: rate, sweatRateSource: "sweat_test" },
+      update: { sweatRateLPerH: rate, sweatRateSource: "sweat_test" },
+    });
+    const workouts = await db.workout.findMany({ where: { userId, status: "PLANNED" } });
+    for (const workout of workouts) await writeFuelingPlan(db, userId, workout, null);
+  }
+  return { sweatTest: presentSweat(row) };
+}
+
+export async function markSweatNotCompleted(db: Db, userId: string, id: string) {
+  const existing = await db.sweatTest.findFirst({ where: { id, userId } });
+  if (!existing) throw new HttpError(HttpErrorCode.SweatTestNotFound);
+  const row = await db.sweatTest.update({
+    where: { id },
+    data: { status: "NOT_COMPLETED" },
+  });
+  return { sweatTest: presentSweat(row) };
+}
+
 async function writeLoadingAndRecovery(
   db: Prisma.TransactionClient | PrismaClient,
   userId: string,
@@ -985,6 +1064,17 @@ export async function recomputeStage(
     trailRaised: computed.trailRaised,
     guidance: guidanceLines(computed.guidance),
     meals: [],
+    occasions: recoveryOccasions({
+      gap: computed.gapCase,
+      gapMin: computed.gapMin,
+      liquidsAndGelsOnly: computed.liquidsAndGelsOnly,
+    }).map((occasion) => ({
+      key: occasion.key,
+      offsetMin: occasion.offsetMin,
+      form: occasion.form,
+      carbsG: occasion.carbShare == null ? null : computed.carbsLowG,
+      proteinG: occasion.carbShare == null ? null : computed.proteinLowG,
+    })),
     exampleFoods: RecoveryGuidanceText.example_foods_tbd,
   };
   if (!computed.gapCase) return;
@@ -1101,12 +1191,22 @@ export async function deleteRace(db: Db, userId: string, id: string) {
 export async function generateStrategy(db: Db, userId: string, raceId: string) {
   const race = await db.race.findFirst({ where: { id: raceId, userId } });
   if (!race) throw new HttpError(HttpErrorCode.RaceNotFound);
+  const result = await raceCarryList(db, userId, race);
   await db.raceStrategy.create({
     data: {
       raceId,
       refillPoints: [],
       description: StrategyNote.Unspecified,
-      carryList: { items: [], status: "not_set" },
+      carryList: {
+        items: result.items,
+        carbStatus: result.carbStatus,
+        fluidStatus: result.fluidStatus,
+        sodiumStatus: result.sodiumStatus,
+        scheduleStatus: result.scheduleStatus,
+        targetBandGPerH: result.band,
+        drinkMixGPerMl: result.drinkMixGPerMl,
+        status: result.carbStatus,
+      },
       chosen: false,
     },
   });
@@ -1140,6 +1240,26 @@ export async function dismissRehearsal(db: Db, userId: string, raceId: string) {
   await db.todoItem.updateMany({
     where: { userId, type: "LOADING_REHEARSAL", status: "OPEN", refId: raceId },
     data: { status: "DISMISSED", closedAt: new Date() },
+  });
+  const full = await db.race.findUniqueOrThrow({ where: { id: raceId }, include: raceInclude });
+  return { race: presentRace(full) };
+}
+
+export async function restoreRehearsal(db: Db, userId: string, raceId: string) {
+  const race = await db.race.findFirst({
+    where: { id: raceId, userId },
+    include: { rehearsal: true },
+  });
+  if (!race) throw new HttpError(HttpErrorCode.RaceNotFound);
+  if (race.rehearsal) {
+    await db.loadingRehearsal.update({
+      where: { id: race.rehearsal.id },
+      data: { status: "SUGGESTED", dismissedAt: null },
+    });
+  }
+  await db.todoItem.updateMany({
+    where: { userId, type: "LOADING_REHEARSAL", refId: raceId, status: "DISMISSED" },
+    data: { status: "OPEN", closedAt: null },
   });
   const full = await db.race.findUniqueOrThrow({ where: { id: raceId }, include: raceInclude });
   return { race: presentRace(full) };

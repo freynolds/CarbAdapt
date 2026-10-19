@@ -35,6 +35,9 @@ import {
   disconnectProvider,
   dismissRehearsal,
   generateStrategy,
+  markSweatNotCompleted,
+  recordSweat,
+  restoreRehearsal,
   listNotifications,
   logout,
   markNotificationRead,
@@ -67,6 +70,7 @@ import {
   startingPointBodySchema,
   sweatCompleteSchema,
   sweatCreateSchema,
+  sweatRecordSchema,
   sweatStartSchema,
   todoPatchSchema,
   webhookBodySchema,
@@ -225,6 +229,15 @@ export function createRecordsRouter(db: PrismaClient): Router {
         ),
       );
   });
+  router.post("/races/:id/rehearsal/restore", authed, async (req, res) => {
+    res
+      .status(200)
+      .json(
+        raceResponseSchema.parse(
+          await restoreRehearsal(db, userId(req), routeParam(req.params.id, "race id")),
+        ),
+      );
+  });
   router.patch("/races/stages/:stageId/recovery", authed, async (req, res) => {
     const body = parseInput(recoveryPatchSchema, req.body);
     res
@@ -260,6 +273,25 @@ export function createRecordsRouter(db: PrismaClient): Router {
       .json(
         sweatTestResponseSchema.parse(
           await startSweat(db, userId(req), routeParam(req.params.id, "sweat test id"), body),
+        ),
+      );
+  });
+  router.post("/sweat-tests/:id/record", authed, async (req, res) => {
+    const body = parseInput(sweatRecordSchema, req.body);
+    res
+      .status(200)
+      .json(
+        sweatTestResponseSchema.parse(
+          await recordSweat(db, userId(req), routeParam(req.params.id, "sweat test id"), body),
+        ),
+      );
+  });
+  router.post("/sweat-tests/:id/not-completed", authed, async (req, res) => {
+    res
+      .status(200)
+      .json(
+        sweatTestResponseSchema.parse(
+          await markSweatNotCompleted(db, userId(req), routeParam(req.params.id, "sweat test id")),
         ),
       );
   });

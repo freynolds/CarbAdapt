@@ -128,7 +128,7 @@ test("two symptom-free sessions advance the ladder", async () => {
         targetKind: "DATE",
         targetDate: "2027-06-01",
         startGh: 60,
-        goalGh: 80,
+        goalGh: 90,
         sessionsPerWeek: 2,
       }),
     });

@@ -93,7 +93,7 @@ test("feedback prefill comes from the plan, else the working rate, else stays un
         targetKind: "DATE",
         targetDate: "2027-06-01",
         startGh: 60,
-        goalGh: 80,
+        goalGh: 90,
         sessionsPerWeek: 2,
       }),
     });
@@ -197,7 +197,7 @@ test("saving feedback twice updates the log and replays ladder advancement", asy
         targetKind: "DATE",
         targetDate: "2027-06-01",
         startGh: 60,
-        goalGh: 80,
+        goalGh: 90,
         sessionsPerWeek: 2,
       }),
     });

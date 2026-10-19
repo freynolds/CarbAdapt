@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useApp } from "@/components/app-state";
 import { Icon, carryIconName, paintIcon } from "@/components/icons";
+import { formatNumber } from "@/lib/format";
+import { asRecord, asString, carryItems } from "@/lib/json";
 
 export function Screen({
   title,
@@ -82,12 +84,38 @@ export function Preview() {
 }
 
 export function NeedSignIn() {
-  const { token, t } = useApp();
+  const { token, t, athletes, login } = useApp();
   if (token) return null;
+  if (athletes.length === 0) {
+    return (
+      <div className="note">
+        <b>{t("auth.login")}</b>
+        {t("common.signInFirst")}
+        <div>
+          <Link href="/auth/magic">{t("auth.magic")}</Link>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="note">
-      <b>{t("auth.login")}</b>
-      {t("common.signInFirst")}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <p className="ey">{t("auth.pick")}</p>
+      {athletes.map((athlete) => (
+        <button
+          key={athlete.athleteId}
+          type="button"
+          className="choice"
+          onClick={() => void login(athlete.athleteId)}
+        >
+          <span>
+            <b>{athlete.name ?? athlete.athleteId}</b>
+            <span className="mu">
+              {athlete.mode ? t(`mode.${athlete.mode}` as "mode.FUEL_MY_WORKOUTS") : athlete.email}
+            </span>
+          </span>
+        </button>
+      ))}
+      <Link href="/auth/magic">{t("auth.magic")}</Link>
     </div>
   );
 }
@@ -140,6 +168,82 @@ export function BigStats({ items }: { items: { value: string; label: string }[] 
   );
 }
 
+export function CarryList({
+  plan,
+  colors,
+}: {
+  plan: unknown;
+  colors?: Map<string, string | null>;
+}) {
+  const { t, locale } = useApp();
+  const items = carryItems(plan);
+  const record = asRecord(plan);
+  const carbStatus = asString(record?.carbStatus);
+  const notSet = t("common.notSet");
+  const carbSum = items.reduce((sum, item) => sum + (item.carbsG ?? 0), 0);
+  const fluidSum = items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
+  const sodiumSum = items.reduce((sum, item) => sum + (item.sodiumMg ?? 0), 0);
+  const carbsKnown = carbStatus === "computed" || items.some((item) => item.carbsG != null);
+  const fluidKnown = items.some((item) => item.fluidMl != null);
+  const showNotSplit =
+    carbStatus === "not_set" || items.some((item) => item.role === "unassigned" && (item.carbsG ?? 0) > 0);
+  return (
+    <>
+      {items.map((item, index) => {
+        const title =
+          item.role === "unassigned"
+            ? t("carry.unassigned")
+            : item.role === "water"
+              ? t("carry.water")
+              : (item.productName ?? item.name);
+        const amount =
+          item.servings == null
+            ? notSet
+            : item.unit === "scoop"
+              ? t("carry.scoops", { n: item.servings })
+              : item.unit === "unit"
+                ? t("carry.units", { n: item.servings })
+                : t("carry.servings", { n: item.servings });
+        const volume = item.volumeMl == null ? null : t("carry.volume", { ml: formatNumber(item.volumeMl, locale) });
+        const carbs = item.carbsG == null ? notSet : `${formatNumber(item.carbsG, locale)} g`;
+        const fluid = item.fluidMl == null ? notSet : `${formatNumber(item.fluidMl, locale)} ml`;
+        const sodium = item.sodiumMg == null ? notSet : `${formatNumber(item.sodiumMg, locale)} mg`;
+        return (
+          <CarryLine
+            key={`${item.name}-${index}`}
+            name={item.containerName ?? title}
+            kind={item.kind}
+            color={item.containerId ? colors?.get(item.containerId) : null}
+            detail={
+              <>
+                <div>
+                  {title}
+                  {item.role === "water" || item.role === "unassigned" ? "" : ` · ${amount}`}
+                  {volume ? ` · ${volume}` : ""}
+                </div>
+                <div>
+                  {carbs} · {fluid} · {sodium}
+                </div>
+              </>
+            }
+          />
+        );
+      })}
+      <div className="rw" style={{ justifyContent: "space-between" }}>
+        <b>{t("carry.total")}</b>
+        <span className="m">
+          {carbsKnown ? `${formatNumber(carbSum, locale)} g` : notSet}
+          {" · "}
+          {fluidKnown ? `${formatNumber(fluidSum, locale)} ml` : notSet}
+          {" · "}
+          {sodiumSum > 0 ? `${formatNumber(sodiumSum, locale)} mg` : notSet}
+        </span>
+      </div>
+      {showNotSplit ? <p className="mu">{t("carry.notSplit")}</p> : null}
+    </>
+  );
+}
+
 export function CarryLine({
   name,
   detail,
@@ -147,7 +251,7 @@ export function CarryLine({
   color,
 }: {
   name: string;
-  detail?: string;
+  detail?: ReactNode;
   kind: string;
   color?: string | null;
 }) {

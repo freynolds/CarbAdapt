@@ -1,11 +1,34 @@
 import { daysBetween, formatDay, parseDay } from "./numbers.js";
 
 export const LADDER_STEP_G = 10;
+export const LADDER_SMALL_STEP_G = 5;
+/** A gap of this many g/h or more uses 10 g/h steps, which is at least three steps. */
+export const LADDER_LARGE_GAP_G = 30;
 export const SESSIONS_PER_STEP = 2;
 export const MAX_GH = 200;
 export const WARN_ABOVE_GH = 120;
 export const ABOVE_GH_WEEKLY_CAP = 90;
 export const LONG_RIDES_BEFORE_RACE = 4;
+/** Gut training needs a race at least four weeks out. */
+export const GUT_RACE_LEAD_DAYS = 28;
+
+/** 10 g/h when the gap is 30 or more. 5 g/h when the gap is smaller and still positive. */
+export function ladderStepG(startGh: number, goalGh: number): number {
+  const gap = goalGh - startGh;
+  if (gap >= LADDER_LARGE_GAP_G) return LADDER_STEP_G;
+  if (gap > 0) return LADDER_SMALL_STEP_G;
+  return LADDER_STEP_G;
+}
+
+export function gutRaceAllowed(
+  today: string,
+  raceDate: string,
+): { ok: boolean; reason: "past" | "too_soon" | null } {
+  const days = daysBetween(today, raceDate);
+  if (days < 0) return { ok: false, reason: "past" };
+  if (days < GUT_RACE_LEAD_DAYS) return { ok: false, reason: "too_soon" };
+  return { ok: true, reason: null };
+}
 
 export type LadderStepDraft = {
   index: number;
@@ -26,10 +49,11 @@ export type LadderResult = {
 };
 
 export function stepTargets(startGh: number, goalGh: number): number[] {
+  const step = ladderStepG(startGh, goalGh);
   const values: number[] = [];
   let gh = startGh;
-  while (gh + LADDER_STEP_G <= goalGh) {
-    gh += LADDER_STEP_G;
+  while (gh + step <= goalGh) {
+    gh += step;
     values.push(gh);
   }
   return values;

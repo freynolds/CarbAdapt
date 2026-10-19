@@ -19,12 +19,18 @@ export {
   type FuelProduct,
   type FuelContainer,
   type CarryItem,
+  type CarryRole,
   type FuelingResult,
 } from "./fueling.js";
 export {
   buildLadder,
   stepTargets,
+  ladderStepG,
+  gutRaceAllowed,
   LADDER_STEP_G,
+  LADDER_SMALL_STEP_G,
+  LADDER_LARGE_GAP_G,
+  GUT_RACE_LEAD_DAYS,
   SESSIONS_PER_STEP,
   MAX_GH,
   WARN_ABOVE_GH,
@@ -62,9 +68,11 @@ export {
 } from "./carb-loading.js";
 export {
   stageRecovery,
+  recoveryOccasions,
   gapCase,
   type GapCase,
   type StageSport,
+  type RecoveryOccasion,
   type StageRecoveryResult,
   type Range,
 } from "./stage-recovery.js";

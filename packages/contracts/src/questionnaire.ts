@@ -23,10 +23,24 @@ export const postWorkoutLogSchema = z
   })
   .strict();
 
-export const feedbackResponseSchema = z
+/** Machine codes for where a questionnaire starting value came from. */
+export const prefillSourceSchema = z.enum(["plan", "working_rate", "not_set"]);
+
+export const intakePrefillSchema = z
   .object({
-    log: postWorkoutLogSchema.nullable(),
+    carbsG: z.number().int().nullable(),
+    fluidMl: z.number().int().nullable(),
+    carbSource: prefillSourceSchema,
+    fluidSource: prefillSourceSchema,
   })
   .strict();
 
+export const feedbackResponseSchema = z
+  .object({
+    log: postWorkoutLogSchema.nullable(),
+    prefill: intakePrefillSchema,
+  })
+  .strict();
+
+export type IntakePrefillResponse = z.infer<typeof intakePrefillSchema>;
 export type FeedbackResponse = z.infer<typeof feedbackResponseSchema>;

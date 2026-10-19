@@ -737,6 +737,21 @@ button {
     monospace;
 }
 
+.stepper input.big {
+  width: 8rem;
+  text-align: center;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.stepper button.coarse {
+  width: auto;
+  min-width: 64px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

@@ -8,6 +8,7 @@ import {
   calibrateSips,
   fuelingPlan,
   ghIncrease,
+  intakePrefill,
   raceBreakfast,
   stageFallbackAt,
   stageRecovery,
@@ -306,6 +307,60 @@ test("a gap under 90 minutes is liquids and gels only", () => {
 test("an achievement is only a higher tolerated g/h", () => {
   assert.equal(ghIncrease({ previousMaxGh: 60, toleratedGh: 70 })?.valueGh, 70);
   assert.equal(ghIncrease({ previousMaxGh: 70, toleratedGh: 70 }), null);
+});
+
+test("intake prefill uses the plan total when the plan set one", () => {
+  const prefill = intakePrefill({
+    durationMin: 180,
+    plannedCarbsG: 240,
+    plannedFluidMl: 2700,
+    workingGPerH: 80,
+    fluidLPerH: 0.9,
+  });
+  assert.equal(prefill.carbsG, 240);
+  assert.equal(prefill.fluidMl, 2700);
+  assert.equal(prefill.carbSource, "plan");
+  assert.equal(prefill.fluidSource, "plan");
+});
+
+test("intake prefill falls back to the working rate times duration", () => {
+  const prefill = intakePrefill({
+    durationMin: 90,
+    plannedCarbsG: null,
+    plannedFluidMl: null,
+    workingGPerH: 70,
+    fluidLPerH: 1,
+  });
+  assert.equal(prefill.carbsG, 105);
+  assert.equal(prefill.fluidMl, 1500);
+  assert.equal(prefill.carbSource, "working_rate");
+  assert.equal(prefill.fluidSource, "working_rate");
+});
+
+test("a zero plan total is kept and a null rate stays unset", () => {
+  const plannedZero = intakePrefill({
+    durationMin: 45,
+    plannedCarbsG: 0,
+    plannedFluidMl: null,
+    workingGPerH: 80,
+    fluidLPerH: null,
+  });
+  assert.equal(plannedZero.carbsG, 0);
+  assert.equal(plannedZero.carbSource, "plan");
+  assert.equal(plannedZero.fluidMl, null);
+  assert.equal(plannedZero.fluidSource, "not_set");
+
+  const noDuration = intakePrefill({
+    durationMin: null,
+    plannedCarbsG: null,
+    plannedFluidMl: null,
+    workingGPerH: 80,
+    fluidLPerH: 1,
+  });
+  assert.equal(noDuration.carbsG, null);
+  assert.equal(noDuration.fluidMl, null);
+  assert.equal(noDuration.carbSource, "not_set");
+  assert.equal(noDuration.fluidSource, "not_set");
 });
 
 test("stage fallback is start plus 1.5 times estimated duration", () => {

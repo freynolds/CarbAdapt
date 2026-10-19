@@ -16,6 +16,7 @@ export function createSubmitFeedbackHandler(service: QuestionnaireService): Requ
   return async (req, res) => {
     const body = parseInput(feedbackBodySchema, req.body);
     const id = routeParam(req.params.id, "workout id");
-    res.status(201).json(feedbackResponseSchema.parse(await service.submitFeedback(userId(req), id, body)));
+    const saved = await service.submitFeedback(userId(req), id, body);
+    res.status(saved.created ? 201 : 200).json(feedbackResponseSchema.parse(saved.body));
   };
 }

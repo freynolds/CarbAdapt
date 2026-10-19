@@ -284,6 +284,17 @@ export const messages = {
   },
   "q.carbs": { en: "How much did you take?", es: "¿Cuánto tomaste?", pt: "Quanto ingeriste?" },
   "q.planned": { en: "Planned {value}", es: "Previsto {value}", pt: "Previsto {value}" },
+  "q.fromTarget": {
+    en: "From your current target",
+    es: "Según tu objetivo actual",
+    pt: "A partir do teu objetivo atual",
+  },
+  "q.summary": {
+    en: "What you logged",
+    es: "Lo que registraste",
+    pt: "O que registaste",
+  },
+  "q.edit": { en: "Edit answers", es: "Editar respuestas", pt: "Editar respostas" },
   "q.when": { en: "When did you take it?", es: "¿Cuándo lo tomaste?", pt: "Quando ingeriste?" },
   "q.asPlanned": { en: "As planned", es: "Como estaba previsto", pt: "Como previsto" },
   "q.late": { en: "A bit late", es: "Un poco tarde", pt: "Um pouco tarde" },

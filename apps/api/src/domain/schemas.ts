@@ -118,6 +118,9 @@ export const feedbackBodySchema = z
     countsForPlan: z.boolean().optional(),
     intakeItems: z.unknown().optional(),
     intakeTiming: z.unknown().optional(),
+    containerWeighIns: z.unknown().optional(),
+    sipProposal: z.unknown().optional(),
+    sweatPostWeightKg: z.number().nullable().optional(),
   })
   .strict();
 

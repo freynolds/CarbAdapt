@@ -69,6 +69,7 @@ export {
   type Range,
 } from "./stage-recovery.js";
 export { ghIncrease } from "./achievements.js";
+export { intakePrefill, type IntakePrefill, type PrefillSource } from "./prefill.js";
 export {
   stageFallbackAt,
   stageNotification,

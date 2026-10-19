@@ -20,6 +20,7 @@ import {
   startingPoint,
   sweatRateLPerH,
   sweatTestTimers,
+  type AdaptationResult,
   type StageSport,
 } from "@carbadapt/engine";
 import { HttpError, HttpErrorCode } from "../http/errors.js";
@@ -43,6 +44,7 @@ import {
 import { hashToken, newToken } from "../http/session.js";
 import { iso, toNumber } from "../http/values.js";
 import { rememberMagicLink } from "./magic.js";
+import { buildIntakePrefill } from "./intake-prefill.js";
 import { saveNotification, scheduleBriefing, writeFuelingPlan } from "./plans.js";
 import type { z } from "zod";
 import type {
@@ -402,36 +404,136 @@ export async function adjustFueling(
   return { fuelingPlan: presentWorkout(full).fuelingPlan };
 }
 
+function feedbackData(body: z.infer<typeof feedbackBodySchema>, eligible: boolean) {
+  return {
+    intakeCarbsG: body.intakeCarbsG ?? null,
+    fluidMl: body.fluidMl ?? null,
+    symptomUpper: body.symptomUpper ?? null,
+    symptomLower: body.symptomLower ?? null,
+    symptomSystemic: body.symptomSystemic ?? null,
+    feeling: body.feeling ?? null,
+    followedPrompts: body.followedPrompts ?? null,
+    countsForPlan: body.countsForPlan ?? true,
+    intakeItems: (body.intakeItems ?? null) as Prisma.InputJsonValue,
+    intakeTiming: (body.intakeTiming ?? null) as Prisma.InputJsonValue,
+    containerWeighIns: (body.containerWeighIns ?? null) as Prisma.InputJsonValue,
+    sipProposal: (body.sipProposal ?? null) as Prisma.InputJsonValue,
+    sweatPostWeightKg: body.sweatPostWeightKg ?? null,
+    ladderEligible: eligible,
+  };
+}
+
 export async function submitFeedback(
   db: Db,
   userId: string,
   workoutId: string,
   body: z.infer<typeof feedbackBodySchema>,
 ) {
-  const workout = await db.workout.findFirst({ where: { id: workoutId, userId } });
+  const workout = await db.workout.findFirst({
+    where: { id: workoutId, userId },
+    include: { fuelingPlans: true },
+  });
   if (!workout) throw new HttpError(HttpErrorCode.WorkoutNotFound);
   const existing = await db.postWorkoutLog.findUnique({ where: { workoutId } });
-  if (existing) throw new HttpError(HttpErrorCode.FeedbackExists);
   const eligible = sessionEligible(workout.sport, workout.durationMin);
-  const log = await db.postWorkoutLog.create({
+  const data = feedbackData(body, eligible);
+  const log = existing
+    ? await db.postWorkoutLog.update({ where: { id: existing.id }, data })
+    : await db.postWorkoutLog.create({ data: { workoutId, ...data } });
+  if (existing) await reapplyAdaptation(db, userId, workout);
+  else await applyAdaptation(db, userId, workout);
+  if (workout.stageId) await recomputeStage(db, userId, workout.stageId);
+  const prefill = await buildIntakePrefill(db, userId, workout);
+  return { created: !existing, body: { log: presentLog(log), prefill } };
+}
+
+type LadderStepRow = {
+  id: string;
+  index: number;
+  gh: number;
+  status: "DONE" | "CURRENT" | "UPCOMING";
+};
+
+type PreservedAchievement = {
+  workoutId: string | null;
+  valueGh: number;
+  celebratedAt: Date | null;
+};
+
+function decisionLogIds(inputLogIds: Prisma.JsonValue): string[] {
+  return Array.isArray(inputLogIds)
+    ? inputLogIds.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+async function commitDecision(
+  db: Db,
+  userId: string,
+  planId: string,
+  steps: LadderStepRow[],
+  current: LadderStepRow | undefined,
+  result: AdaptationResult,
+  triggeringWorkoutId: string,
+  preserved: PreservedAchievement[],
+): Promise<LadderStepRow | undefined> {
+  if (result.outcome === "NONE") return current;
+  await db.adaptationDecision.create({
     data: {
-      workoutId,
-      intakeCarbsG: body.intakeCarbsG ?? null,
-      fluidMl: body.fluidMl ?? null,
-      symptomUpper: body.symptomUpper ?? null,
-      symptomLower: body.symptomLower ?? null,
-      symptomSystemic: body.symptomSystemic ?? null,
-      feeling: body.feeling ?? null,
-      followedPrompts: body.followedPrompts ?? null,
-      countsForPlan: body.countsForPlan ?? true,
-      intakeItems: (body.intakeItems ?? null) as Prisma.InputJsonValue,
-      intakeTiming: (body.intakeTiming ?? null) as Prisma.InputJsonValue,
-      ladderEligible: eligible,
+      planId,
+      outcome: result.outcome,
+      fromGh: result.fromGh,
+      toGh: result.toGh,
+      inputLogIds: result.inputLogIds,
+      reason: result.reason,
+      engineVersion: ENGINE_VERSION,
     },
   });
-  await applyAdaptation(db, userId, workout);
-  if (workout.stageId) await recomputeStage(db, userId, workout.stageId);
-  return { log: presentLog(log) };
+  if (!current) return current;
+  if (result.outcome === "ADVANCE") {
+    const next = steps.find((step) => step.index === current.index + 1);
+    await db.ladderStep.update({ where: { id: current.id }, data: { status: "DONE" } });
+    current.status = "DONE";
+    if (next) {
+      await db.ladderStep.update({ where: { id: next.id }, data: { status: "CURRENT" } });
+      next.status = "CURRENT";
+    }
+    const previous = await db.achievement.aggregate({ where: { userId }, _max: { valueGh: true } });
+    const achievement = ghIncrease({
+      previousMaxGh: previous._max.valueGh,
+      toleratedGh: result.toGh,
+    });
+    if (achievement) {
+      const match = preserved.find(
+        (item) => item.workoutId === triggeringWorkoutId && item.valueGh === achievement.valueGh,
+      );
+      await db.achievement.create({
+        data: {
+          userId,
+          type: "GH_INCREASE",
+          valueGh: achievement.valueGh,
+          workoutId: triggeringWorkoutId,
+          celebratedAt: match?.celebratedAt ?? null,
+        },
+      });
+    }
+    await db.physicalData.upsert({
+      where: { userId },
+      create: { userId, ghTolerance: result.toGh },
+      update: { ghTolerance: result.toGh },
+    });
+    return next ?? current;
+  }
+  if (result.outcome === "STEP_BACK" && current.index > 0) {
+    const previous = steps.find((step) => step.index === current.index - 1);
+    await db.ladderStep.update({ where: { id: current.id }, data: { status: "UPCOMING" } });
+    current.status = "UPCOMING";
+    if (previous) {
+      await db.ladderStep.update({ where: { id: previous.id }, data: { status: "CURRENT" } });
+      previous.status = "CURRENT";
+      return previous;
+    }
+  }
+  return current;
 }
 
 async function applyAdaptation(
@@ -445,7 +547,13 @@ async function applyAdaptation(
     orderBy: { createdAt: "desc" },
   });
   if (!plan) return;
-  const current = plan.steps.find((step) => step.status === "CURRENT");
+  const steps: LadderStepRow[] = plan.steps.map((step) => ({
+    id: step.id,
+    index: step.index,
+    gh: step.gh,
+    status: step.status,
+  }));
+  const current = steps.find((step) => step.status === "CURRENT");
   const currentGh = current?.gh ?? plan.startGh;
   const week = weekKey(workout.plannedDate);
   const advancesThisWeek = plan.decisions.filter(
@@ -457,11 +565,7 @@ async function applyAdaptation(
     orderBy: { submittedAt: "desc" },
   });
   const consumed = new Set(
-    plan.decisions.flatMap((decision) =>
-      Array.isArray(decision.inputLogIds)
-        ? decision.inputLogIds.filter((item): item is string => typeof item === "string")
-        : [],
-    ),
+    plan.decisions.flatMap((decision) => decisionLogIds(decision.inputLogIds)),
   );
   const result = adapt({
     currentGh,
@@ -482,43 +586,127 @@ async function applyAdaptation(
       weekKey: weekKey(row.workout.plannedDate),
     })),
   });
-  if (result.outcome === "NONE") return;
-  await db.adaptationDecision.create({
-    data: {
-      planId: plan.id,
-      outcome: result.outcome,
-      fromGh: result.fromGh,
-      toGh: result.toGh,
-      inputLogIds: result.inputLogIds,
-      reason: result.reason,
-      engineVersion: ENGINE_VERSION,
-    },
+  await commitDecision(db, userId, plan.id, steps, current, result, workout.id, []);
+}
+
+/**
+ * An edited log may already sit inside a ladder decision. Incremental adapt would
+ * leave that decision in place, so the edit would not move the step. Roll the plan
+ * back to just before the earliest decision that used this log, then replay every
+ * later session. A first save stays incremental so a fixture ladder is left as seeded.
+ */
+async function reapplyAdaptation(
+  db: Db,
+  userId: string,
+  workout: { id: string; plannedDate: Date; durationMin: number | null; sport: StageSport },
+) {
+  const plan = await db.gutTrainingPlan.findFirst({
+    where: { userId, status: "ACTIVE" },
+    include: { steps: true, decisions: true },
+    orderBy: { createdAt: "desc" },
   });
-  if (result.outcome === "ADVANCE" && current) {
-    const next = plan.steps.find((step) => step.index === current.index + 1);
-    await db.ladderStep.update({ where: { id: current.id }, data: { status: "DONE" } });
-    if (next) await db.ladderStep.update({ where: { id: next.id }, data: { status: "CURRENT" } });
-    const previous = await db.achievement.aggregate({ where: { userId }, _max: { valueGh: true } });
-    const achievement = ghIncrease({
-      previousMaxGh: previous._max.valueGh,
-      toleratedGh: result.toGh,
-    });
-    if (achievement) {
-      await db.achievement.create({
-        data: { userId, type: "GH_INCREASE", valueGh: achievement.valueGh, workoutId: workout.id },
-      });
-    }
-    await db.physicalData.upsert({
-      where: { userId },
-      create: { userId, ghTolerance: result.toGh },
-      update: { ghTolerance: result.toGh },
-    });
+  if (!plan) return;
+  const edited = await db.postWorkoutLog.findUnique({ where: { workoutId: workout.id } });
+  if (!edited) return;
+  const involved = plan.decisions.filter((decision) =>
+    decisionLogIds(decision.inputLogIds).includes(edited.id),
+  );
+  if (involved.length === 0) {
+    await applyAdaptation(db, userId, workout);
+    return;
   }
-  if (result.outcome === "STEP_BACK" && current && current.index > 0) {
-    const previous = plan.steps.find((step) => step.index === current.index - 1);
-    await db.ladderStep.update({ where: { id: current.id }, data: { status: "UPCOMING" } });
-    if (previous)
-      await db.ladderStep.update({ where: { id: previous.id }, data: { status: "CURRENT" } });
+  const earliest = involved.reduce((left, right) =>
+    left.createdAt <= right.createdAt ? left : right,
+  );
+  const drop = plan.decisions.filter((decision) => decision.createdAt >= earliest.createdAt);
+  const keep = plan.decisions.filter((decision) => decision.createdAt < earliest.createdAt);
+  const steps: LadderStepRow[] = plan.steps.map((step) => ({
+    id: step.id,
+    index: step.index,
+    gh: step.gh,
+    status: step.status,
+  }));
+  const restored = steps.find((step) => step.gh === earliest.fromGh);
+  if (!restored) {
+    await applyAdaptation(db, userId, workout);
+    return;
+  }
+  for (const step of steps) {
+    const status: LadderStepRow["status"] =
+      step.index < restored.index ? "DONE" : step.index === restored.index ? "CURRENT" : "UPCOMING";
+    if (step.status !== status) {
+      await db.ladderStep.update({ where: { id: step.id }, data: { status } });
+      step.status = status;
+    }
+  }
+  await db.adaptationDecision.deleteMany({
+    where: { id: { in: drop.map((decision) => decision.id) } },
+  });
+  await db.physicalData.upsert({
+    where: { userId },
+    create: { userId, ghTolerance: restored.gh },
+    update: { ghTolerance: restored.gh },
+  });
+  const logs = await db.postWorkoutLog.findMany({
+    where: { workout: { userId } },
+    include: { workout: { select: { id: true, plannedDate: true } } },
+    orderBy: { submittedAt: "asc" },
+  });
+  const droppedIds = new Set(drop.flatMap((decision) => decisionLogIds(decision.inputLogIds)));
+  const droppedWorkouts = logs.filter((log) => droppedIds.has(log.id)).map((log) => log.workoutId);
+  const preserved =
+    droppedWorkouts.length === 0
+      ? []
+      : await db.achievement.findMany({
+          where: { userId, type: "GH_INCREASE", workoutId: { in: droppedWorkouts } },
+        });
+  if (preserved.length > 0) {
+    await db.achievement.deleteMany({ where: { id: { in: preserved.map((item) => item.id) } } });
+  }
+  let current: LadderStepRow | undefined = restored;
+  let currentGh = restored.gh;
+  const consumed = new Set(keep.flatMap((decision) => decisionLogIds(decision.inputLogIds)));
+  const advancesByWeek = new Map<string, number>();
+  for (const decision of keep) {
+    if (decision.outcome !== "ADVANCE") continue;
+    const week = weekKey(decision.createdAt);
+    advancesByWeek.set(week, (advancesByWeek.get(week) ?? 0) + 1);
+  }
+  for (const log of logs) {
+    const week = weekKey(log.workout.plannedDate);
+    const through = logs.filter((row) => row.submittedAt.getTime() <= log.submittedAt.getTime());
+    const result = adapt({
+      currentGh,
+      advancesThisWeek: advancesByWeek.get(week) ?? 0,
+      weekKey: week,
+      logsNewestFirst: [...through].reverse().map((row) => ({
+        id: row.id,
+        gh: consumed.has(row.id) ? currentGh - LADDER_STEP_G : currentGh,
+        symptom: agreedSymptom({
+          upper: row.symptomUpper,
+          lower: row.symptomLower,
+          systemic: row.symptomSystemic,
+        }),
+        eligible: row.ladderEligible,
+        countsForPlan: row.countsForPlan,
+        weekKey: weekKey(row.workout.plannedDate),
+      })),
+    });
+    if (result.outcome === "ADVANCE") advancesByWeek.set(week, (advancesByWeek.get(week) ?? 0) + 1);
+    current = await commitDecision(
+      db,
+      userId,
+      plan.id,
+      steps,
+      current,
+      result,
+      log.workout.id,
+      preserved,
+    );
+    if (result.outcome !== "NONE") {
+      for (const id of result.inputLogIds) consumed.add(id);
+    }
+    currentGh = current?.gh ?? currentGh;
   }
 }
 

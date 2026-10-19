@@ -1024,7 +1024,11 @@ export async function connectProvider(
       accessTokenEnc: "mock:local",
       status: "CONNECTED",
     },
-    update: { status: "CONNECTED", accessTokenEnc: "mock:local" },
+    update: {
+      status: "CONNECTED",
+      accessTokenEnc: "mock:local",
+      externalUserId: `mock-${provider.toLowerCase()}`,
+    },
   });
   return { connected: true as const };
 }

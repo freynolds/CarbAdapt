@@ -1366,15 +1366,15 @@ export const messages = {
   "auth.login": { en: "Sign in", es: "Entrar", pt: "Entrar" },
   "auth.magic": { en: "Email magic link", es: "Enlace por correo", pt: "Ligação por email" },
   "auth.magicHelp": {
-    en: "Enter an email. No message is sent in this preview.",
-    es: "Escribe un correo. En esta vista no se envía ningún mensaje.",
-    pt: "Escreve um email. Nesta vista não se envia nenhuma mensagem.",
+    en: "Enter an email. The local server prints the sign-in link. It does not send a real email.",
+    es: "Escribe un correo. El servidor local imprime el enlace. No envía un correo real.",
+    pt: "Escreve um email. O servidor local imprime a ligação. Não envia um email real.",
   },
   "auth.send": { en: "Send link", es: "Enviar enlace", pt: "Enviar ligação" },
   "auth.sent": {
-    en: "Nothing was sent. Pick a demo athlete above to continue.",
-    es: "No se envió nada. Elige un atleta de prueba arriba para seguir.",
-    pt: "Nada foi enviado. Escolhe um atleta de demonstração acima para continuar.",
+    en: "The sign-in link is in the API log. Open it on this machine.",
+    es: "El enlace está en el registro de la API. Ábrelo en esta máquina.",
+    pt: "A ligação está no registo da API. Abre-a nesta máquina.",
   },
   "auth.callback": {
     en: "Provider sign-in is not connected yet. Use a demo athlete.",

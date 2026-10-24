@@ -48,7 +48,7 @@ import { hashToken, newToken } from "../http/session.js";
 import { iso, toNumber } from "../http/values.js";
 import { rememberMagicLink } from "./magic.js";
 import { buildIntakePrefill } from "./intake-prefill.js";
-import { raceCarryList, saveNotification, scheduleBriefing, writeFuelingPlan } from "./plans.js";
+import { carryPayload, raceCarryList, refreshCarryPlans, saveNotification, scheduleBriefing, writeFuelingPlan } from "./plans.js";
 import type { z } from "zod";
 import type {
   calibrationBodySchema,
@@ -117,6 +117,7 @@ async function openSession(db: Db, userId: string) {
 
 export async function patchMe(db: Db, userId: string, body: z.infer<typeof patchMeSchema>) {
   await db.user.update({ where: { id: userId }, data: body });
+  if (body.carbSplit != null || body.fluidPlan != null) await refreshCarryPlans(db, userId);
   return loadMe(db, userId);
 }
 
@@ -1189,22 +1190,19 @@ export async function deleteRace(db: Db, userId: string, id: string) {
 }
 
 export async function generateStrategy(db: Db, userId: string, raceId: string) {
-  const race = await db.race.findFirst({ where: { id: raceId, userId } });
+  const race = await db.race.findFirst({
+    where: { id: raceId, userId },
+    include: { aidStations: true },
+  });
   if (!race) throw new HttpError(HttpErrorCode.RaceNotFound);
-  const result = await raceCarryList(db, userId, race);
+  const result = await raceCarryList(db, userId, race, race.aidStations.length);
   await db.raceStrategy.create({
     data: {
       raceId,
       refillPoints: [],
       description: StrategyNote.Unspecified,
       carryList: {
-        items: result.items,
-        carbStatus: result.carbStatus,
-        fluidStatus: result.fluidStatus,
-        sodiumStatus: result.sodiumStatus,
-        scheduleStatus: result.scheduleStatus,
-        targetBandGPerH: result.band,
-        drinkMixGPerMl: result.drinkMixGPerMl,
+        ...carryPayload(result),
         status: result.carbStatus,
       },
       chosen: false,
@@ -1454,7 +1452,17 @@ export async function claimOnboarding(db: Db, userId: string, body: z.infer<type
     answers?.mode === "GUT_TRAINING" || answers?.mode === "FUEL_MY_WORKOUTS"
       ? answers.mode
       : undefined;
-  if (mode) await db.user.update({ where: { id: userId }, data: { mode } });
+  const carbSplit =
+    answers?.carbSplit === "BOTTLES_THEN_GELS" ||
+    answers?.carbSplit === "MOSTLY_WATER" ||
+    answers?.carbSplit === "MORE_MIX"
+      ? answers.carbSplit
+      : "BOTTLES_THEN_GELS";
+  const fluidPlan =
+    answers?.fluidPlan === "MORE_BOTTLES" || answers?.fluidPlan === "REFILL"
+      ? answers.fluidPlan
+      : "MORE_BOTTLES";
+  await db.user.update({ where: { id: userId }, data: { ...(mode ? { mode } : {}), carbSplit, fluidPlan } });
   if ((weight != null && Number.isFinite(weight)) || (ftp != null && Number.isFinite(ftp))) {
     await db.physicalData.upsert({
       where: { userId },

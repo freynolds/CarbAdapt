@@ -1,4 +1,4 @@
-import { hours, round2, roundInt } from "./numbers.js";
+import { hours, roundInt } from "./numbers.js";
 import { NOT_SET, type SetStatus } from "./tbd.js";
 
 export type EngineSport = "CYCLING" | "RUNNING" | "TRAIL_RUNNING" | "OTHER";
@@ -45,6 +45,15 @@ export function carbBand(durationMin: number, sport: EngineSport): CarbBand {
   return { minGPerH: 90, maxGPerH: 120, mouthRinse: false, none: false, specified: true };
 }
 
+/** How the athlete wants carbohydrate divided between bottles and gels. */
+export type CarbSplit = "BOTTLES_THEN_GELS" | "MOSTLY_WATER" | "MORE_MIX";
+
+/** What to do with fluid that does not fit in the bottles the athlete owns. */
+export type FluidPlan = "MORE_BOTTLES" | "REFILL";
+
+/** Where a numeric carb rate came from. `band_low` is the low end of §7.1, not a single recommended rate. */
+export type CarbBasis = "chosen" | "ladder" | "band_low" | "not_set";
+
 export type FuelProduct = {
   id: string;
   type: "DRINK_MIX" | "GEL" | "SOLID";
@@ -53,6 +62,11 @@ export type FuelProduct = {
   sodiumMg: number | null;
   /** Present when the library stores a scoop. Drink mix is counted in scoops then. */
   scoopG?: number | null;
+  /**
+   * Milliliters one scoop prepares. Fuel mode uses this to scale scoops to the
+   * fluid poured into a bottle. Null uses {@link DEFAULT_PREPARES_ML}.
+   */
+  preparesMl?: number | null;
 };
 
 export type FuelContainer = {
@@ -68,7 +82,14 @@ const CONTENT_ORDER: Record<FuelContainer["usualContent"], number> = {
   GEL_CONCENTRATE: 2,
 };
 
-export type CarryRole = "water" | "drink_mix" | "gel" | "solid" | "unassigned";
+export type CarryRole =
+  | "water"
+  | "drink_mix"
+  | "gel"
+  | "solid"
+  | "more_bottles"
+  | "refill"
+  | "extra_powder";
 
 export type CarryItem = {
   name: string;
@@ -84,10 +105,13 @@ export type CarryItem = {
   carryCarbsG: number | null;
   sodiumMg: number | null;
   role: CarryRole;
+  /** Extra bottles to add, when role is `more_bottles`. */
+  count: number | null;
 };
 
 export type FuelingResult = {
   targetGPerH: number | null;
+  carbBasis: CarbBasis;
   band: CarbBand;
   totalCarbsG: number;
   totalFluidMl: number;
@@ -98,9 +122,14 @@ export type FuelingResult = {
   scheduleStatus: SetStatus;
   schedule: [];
   items: CarryItem[];
-  /** Gut-training drink mix uses the cited ~10% w/v only. Fuel mode does not. */
+  /** Gut-training drink mix starts from the cited ~10% w/v. Fuel mode does not. */
   drinkMixGPerMl: number | null;
+  /** True when whole gels or half scoops carry more carbohydrate than the session target. */
+  carbsRoundedUp: boolean;
 };
+
+/** One scoop prepares this much fluid when the product does not say otherwise. */
+export const DEFAULT_PREPARES_ML = 500;
 
 const GUT_DRINK_G_PER_ML = 0.1;
 
@@ -115,15 +144,22 @@ export function fuelingPlan(input: {
   sweatRateLPerH: number | null;
   products: FuelProduct[];
   containers: FuelContainer[];
+  /** Default fills isotonic bottles, then gels. */
+  carbSplit?: CarbSplit;
+  /** Default asks for more bottles. Refill fluid is always plain water. */
+  fluidPlan?: FluidPlan;
+  /**
+   * Aid-station stops that share a water refill. Used only when fluidPlan is REFILL.
+   * Zero means one refill row for the whole shortfall.
+   */
+  aidStationCount?: number;
 }): FuelingResult {
   const duration = input.durationMin ?? 0;
   const band = input.durationMin == null ? carbBand(0, "OTHER") : carbBand(duration, input.sport);
-  const target =
-    input.chosenGPerH ??
-    (input.mode === "GUT_TRAINING" ? input.currentStepGh : null);
-  const carbStatus: SetStatus = target == null || input.durationMin == null ? NOT_SET : "computed";
+  const resolved = resolveTarget(input, band);
+  const carbStatus: SetStatus = resolved.target == null || input.durationMin == null ? NOT_SET : "computed";
   const totalCarbsG =
-    carbStatus === "computed" && target != null ? roundInt(target * hours(duration)) : 0;
+    carbStatus === "computed" && resolved.target != null ? roundInt(resolved.target * hours(duration)) : 0;
   const fluidStatus: SetStatus = input.sweatRateLPerH == null || input.durationMin == null ? NOT_SET : "computed";
   const totalFluidMl =
     fluidStatus === "computed" && input.sweatRateLPerH != null
@@ -134,6 +170,9 @@ export function fuelingPlan(input: {
     containers: input.containers,
     products: input.products,
     mode: input.mode,
+    carbSplit: input.carbSplit ?? "BOTTLES_THEN_GELS",
+    fluidPlan: input.fluidPlan ?? "MORE_BOTTLES",
+    aidStationCount: input.aidStationCount ?? 0,
     carbStatus,
     fluidStatus,
     totalCarbsG,
@@ -141,7 +180,8 @@ export function fuelingPlan(input: {
   });
 
   return {
-    targetGPerH: target,
+    targetGPerH: resolved.target,
+    carbBasis: carbStatus === "computed" ? resolved.basis : "not_set",
     band,
     totalCarbsG,
     totalFluidMl,
@@ -153,7 +193,26 @@ export function fuelingPlan(input: {
     schedule: [],
     items: built.items,
     drinkMixGPerMl: built.drinkMixGPerMl,
+    carbsRoundedUp: built.carbsRoundedUp,
   };
+}
+
+function resolveTarget(
+  input: {
+    durationMin: number | null;
+    mode: "FUEL_MY_WORKOUTS" | "GUT_TRAINING" | null;
+    currentStepGh: number | null;
+    chosenGPerH: number | null;
+  },
+  band: CarbBand,
+): { target: number | null; basis: CarbBasis } {
+  if (input.durationMin == null) return { target: null, basis: "not_set" };
+  if (input.chosenGPerH != null) return { target: input.chosenGPerH, basis: "chosen" };
+  if (input.mode === "GUT_TRAINING" && input.currentStepGh != null) {
+    return { target: input.currentStepGh, basis: "ladder" };
+  }
+  if (band.specified && band.minGPerH != null) return { target: band.minGPerH, basis: "band_low" };
+  return { target: null, basis: "not_set" };
 }
 
 function productOf(products: FuelProduct[], type: FuelProduct["type"]): FuelProduct | null {
@@ -165,33 +224,60 @@ function sodiumFor(product: FuelProduct | null, servings: number | null): number
   return roundInt(servings * product.sodiumMg);
 }
 
+/** Nearest half. 1.42 → 1.5, 0.75 → 1. */
+function roundHalf(value: number): number {
+  return Math.round(value * 2) / 2;
+}
+
+/** Next half up. 5.5 stays 5.5. 0.51 becomes 1. */
+function ceilHalf(value: number): number {
+  return Math.ceil(value * 2 - 1e-9) / 2;
+}
+
+function ceilUnits(value: number): number {
+  return Math.ceil(value - 1e-9);
+}
+
+function grams(servings: number, perServing: number): number {
+  return roundInt(servings * perServing);
+}
+
 /**
- * Every container gets a row. Gut training fills isotonic bottles at ~10% w/v
- * and puts leftover carbs in a gel flask, then a solid, then an unassigned row.
- * Fuel mode does not split carbs across containers (that rule is unset). Fluid
- * fills non-gel containers up to their volume. Leftover fluid is unassigned.
+ * Each owned bottle is filled once. Scoops follow the fluid poured into that
+ * bottle (its capacity, when the session needs at least that much). Gut
+ * training caps that fill at ~10% w/v, then rounds to half scoops. Fuel mode
+ * uses the product's scoop-per-volume. Leftover carbohydrate is whole gels,
+ * or extra powder when the athlete has no gel. Refill fluid is plain water.
  */
 function buildCarry(input: {
   containers: FuelContainer[];
   products: FuelProduct[];
   mode: "FUEL_MY_WORKOUTS" | "GUT_TRAINING" | null;
+  carbSplit: CarbSplit;
+  fluidPlan: FluidPlan;
+  aidStationCount: number;
   carbStatus: SetStatus;
   fluidStatus: SetStatus;
   totalCarbsG: number;
   totalFluidMl: number;
-}): { items: CarryItem[]; sodium: number; sodiumKnown: boolean; drinkMixGPerMl: number | null } {
+}): {
+  items: CarryItem[];
+  sodium: number;
+  sodiumKnown: boolean;
+  drinkMixGPerMl: number | null;
+  carbsRoundedUp: boolean;
+} {
   const containers = [...input.containers].sort(
     (left, right) => CONTENT_ORDER[left.usualContent] - CONTENT_ORDER[right.usualContent],
   );
   const drink = productOf(input.products, "DRINK_MIX");
   const gel = productOf(input.products, "GEL");
-  const solid = productOf(input.products, "SOLID");
   const carbKnown = input.carbStatus === "computed";
   const fluidKnown = input.fluidStatus === "computed";
-  const gutMix =
-    input.mode === "GUT_TRAINING" && drink != null && carbKnown && fluidKnown && drink.carbsG > 0;
+  const gut = input.mode === "GUT_TRAINING";
+  const canMix = drink != null && drink.carbsG > 0 && carbKnown && fluidKnown;
   let drinkMixGPerMl: number | null = null;
-  if (gutMix) drinkMixGPerMl = GUT_DRINK_G_PER_ML;
+  if (gut && canMix) drinkMixGPerMl = GUT_DRINK_G_PER_ML;
 
   const fluidById = new Map<string, number>();
   let fluidLeft = fluidKnown ? input.totalFluidMl : 0;
@@ -203,25 +289,94 @@ function buildCarry(input: {
       fluidLeft -= take;
     }
   }
+  const shortfall = fluidKnown ? Math.max(0, fluidLeft) : 0;
 
-  let carbsLeft = carbKnown ? input.totalCarbsG : 0;
-  const gutCarbsById = new Map<string, number>();
-  if (gutMix && drink) {
+  const mixIds = new Set<string>();
+  if (canMix) {
     for (const container of containers) {
-      if (container.usualContent !== "ISOTONIC") continue;
-      const fluid = fluidById.get(container.id) ?? 0;
-      const room = roundInt(GUT_DRINK_G_PER_ML * fluid);
-      const carbs = Math.min(carbsLeft, room);
-      gutCarbsById.set(container.id, carbs);
-      carbsLeft -= carbs;
+      if (container.usualContent === "ISOTONIC") mixIds.add(container.id);
+      if (container.usualContent === "WATER" && input.carbSplit === "MORE_MIX") mixIds.add(container.id);
     }
   }
 
+  const scoopsById = new Map<string, number>();
+  let carbsLeft = carbKnown ? input.totalCarbsG : 0;
+  if (canMix && drink) {
+    const mixOrder = containers.filter((container) => mixIds.has(container.id));
+    mixOrder.sort((left, right) => {
+      if (left.usualContent === right.usualContent) return 0;
+      return left.usualContent === "ISOTONIC" ? -1 : 1;
+    });
+    for (const container of mixOrder) {
+      const fluid = fluidById.get(container.id) ?? 0;
+      const scoops = scoopsInBottle(drink, fluid, gut, input.carbSplit, carbsLeft);
+      scoopsById.set(container.id, scoops);
+      carbsLeft -= grams(scoops, drink.carbsG);
+      if (carbsLeft < 0) carbsLeft = 0;
+    }
+  }
+
+  let gelPack: { units: number; carbs: number } | null = null;
+  if (carbKnown && carbsLeft > 0 && gel && gel.carbsG > 0) {
+    const units = Math.max(1, ceilUnits(carbsLeft / gel.carbsG));
+    gelPack = { units, carbs: grams(units, gel.carbsG) };
+    carbsLeft = 0;
+  }
+
+  let powder: { scoops: number; carbs: number } | null = null;
+  if (carbKnown && carbsLeft > 0 && drink && drink.carbsG > 0) {
+    const scoops = ceilHalf(carbsLeft / drink.carbsG);
+    powder = { scoops, carbs: grams(scoops, drink.carbsG) };
+    carbsLeft = 0;
+  }
+
   const items: CarryItem[] = [];
-  let gelUsed = false;
+  let gelPlaced = false;
   for (const container of containers) {
     const volumeMl = container.capacityMl;
     const held = fluidKnown ? (fluidById.get(container.id) ?? 0) : null;
+    if (container.usualContent === "GEL_CONCENTRATE") {
+      const place = gelPack != null && !gelPlaced;
+      if (place) gelPlaced = true;
+      const servings = place && gelPack ? gelPack.units : carbKnown && gel ? 0 : null;
+      const carbs = place && gelPack ? gelPack.carbs : carbKnown ? 0 : null;
+      items.push({
+        name: gel?.name ?? container.name,
+        containerName: container.name,
+        containerId: container.id,
+        productId: gel?.id ?? null,
+        productName: gel?.name ?? null,
+        servings,
+        unit: gel ? "unit" : null,
+        volumeMl,
+        fluidMl: fluidKnown ? 0 : null,
+        carryCarbsG: carbs,
+        sodiumMg: carbs == null ? null : sodiumFor(gel, servings),
+        role: "gel",
+        count: null,
+      });
+      continue;
+    }
+    if (mixIds.has(container.id) && drink) {
+      const scoops = scoopsById.get(container.id) ?? 0;
+      const carbs = carbKnown ? grams(scoops, drink.carbsG) : null;
+      items.push({
+        name: drink.name,
+        containerName: container.name,
+        containerId: container.id,
+        productId: drink.id,
+        productName: drink.name,
+        servings: carbKnown ? scoops : null,
+        unit: drink.scoopG != null ? "scoop" : "serving",
+        volumeMl,
+        fluidMl: held,
+        carryCarbsG: carbs,
+        sodiumMg: carbs == null ? null : sodiumFor(drink, scoops),
+        role: "drink_mix",
+        count: null,
+      });
+      continue;
+    }
     if (container.usualContent === "WATER") {
       items.push({
         name: container.name,
@@ -236,94 +391,66 @@ function buildCarry(input: {
         carryCarbsG: carbKnown ? 0 : null,
         sodiumMg: carbKnown ? 0 : null,
         role: "water",
+        count: null,
       });
       continue;
     }
-    if (container.usualContent === "ISOTONIC") {
-      const carbs = gutCarbsById.has(container.id) ? (gutCarbsById.get(container.id) ?? 0) : null;
-      const servings =
-        drink && drink.carbsG > 0 && carbs != null ? round2(carbs / drink.carbsG) : null;
-      items.push({
-        name: drink?.name ?? container.name,
-        containerName: container.name,
-        containerId: container.id,
-        productId: drink?.id ?? null,
-        productName: drink?.name ?? null,
-        servings,
-        unit: drink ? (drink.scoopG != null ? "scoop" : "serving") : null,
-        volumeMl,
-        fluidMl: held,
-        carryCarbsG: carbs,
-        sodiumMg: carbs == null ? null : sodiumFor(drink, servings),
-        role: "drink_mix",
-      });
-      continue;
-    }
-    let carbs: number | null = null;
-    let servings: number | null = null;
-    if (gutMix && !gelUsed && gel && gel.carbsG > 0) {
-      carbs = carbsLeft;
-      if (carbs > 0) carbsLeft = 0;
-      servings = round2(carbs / gel.carbsG);
-      gelUsed = true;
-    }
+    const scoops = drink && carbKnown ? (scoopsById.get(container.id) ?? 0) : null;
+    const carbs = drink && scoops != null ? grams(scoops, drink.carbsG) : carbKnown ? 0 : null;
     items.push({
-      name: gel?.name ?? container.name,
+      name: drink?.name ?? container.name,
       containerName: container.name,
       containerId: container.id,
-      productId: gel?.id ?? null,
-      productName: gel?.name ?? null,
-      servings,
-      unit: gel ? "unit" : null,
+      productId: drink?.id ?? null,
+      productName: drink?.name ?? null,
+      servings: scoops,
+      unit: drink ? (drink.scoopG != null ? "scoop" : "serving") : null,
       volumeMl,
-      fluidMl: fluidKnown ? 0 : null,
+      fluidMl: held,
       carryCarbsG: carbs,
-      sodiumMg: carbs == null ? null : sodiumFor(gel, servings),
-      role: "gel",
+      sodiumMg: carbs == null ? null : sodiumFor(drink, scoops),
+      role: "drink_mix",
+      count: null,
     });
   }
 
-  if (gutMix && carbsLeft > 0 && gel && gel.carbsG > 0 && !gelUsed) {
-    const carbs = carbsLeft;
-    carbsLeft = 0;
-    const servings = round2(carbs / gel.carbsG);
+  if (gelPack && !gelPlaced && gel) {
     items.push({
       name: gel.name,
       containerName: null,
       containerId: null,
       productId: gel.id,
       productName: gel.name,
-      servings,
+      servings: gelPack.units,
       unit: "unit",
       volumeMl: null,
       fluidMl: fluidKnown ? 0 : null,
-      carryCarbsG: carbs,
-      sodiumMg: sodiumFor(gel, servings),
+      carryCarbsG: gelPack.carbs,
+      sodiumMg: sodiumFor(gel, gelPack.units),
       role: "gel",
-    });
-  } else if (gutMix && carbsLeft > 0 && solid && solid.carbsG > 0) {
-    const carbs = carbsLeft;
-    carbsLeft = 0;
-    const servings = round2(carbs / solid.carbsG);
-    items.push({
-      name: solid.name,
-      containerName: null,
-      containerId: null,
-      productId: solid.id,
-      productName: solid.name,
-      servings,
-      unit: "serving",
-      volumeMl: null,
-      fluidMl: fluidKnown ? 0 : null,
-      carryCarbsG: carbs,
-      sodiumMg: sodiumFor(solid, servings),
-      role: "solid",
+      count: null,
     });
   }
 
-  if ((carbKnown && carbsLeft > 0) || (fluidKnown && fluidLeft > 0)) {
+  if (powder && drink) {
     items.push({
-      name: "unassigned",
+      name: drink.name,
+      containerName: null,
+      containerId: null,
+      productId: drink.id,
+      productName: drink.name,
+      servings: powder.scoops,
+      unit: drink.scoopG != null ? "scoop" : "serving",
+      volumeMl: null,
+      fluidMl: fluidKnown ? 0 : null,
+      carryCarbsG: powder.carbs,
+      sodiumMg: sodiumFor(drink, powder.scoops),
+      role: "extra_powder",
+      count: null,
+    });
+  } else if (carbKnown && carbsLeft > 0) {
+    items.push({
+      name: "extra_powder",
       containerName: null,
       containerId: null,
       productId: null,
@@ -331,22 +458,103 @@ function buildCarry(input: {
       servings: null,
       unit: null,
       volumeMl: null,
-      fluidMl: fluidKnown ? fluidLeft : null,
-      carryCarbsG: carbKnown ? carbsLeft : null,
+      fluidMl: fluidKnown ? 0 : null,
+      carryCarbsG: carbsLeft,
       sodiumMg: null,
-      role: "unassigned",
+      role: "extra_powder",
+      count: null,
     });
+  }
+
+  if (shortfall > 0) {
+    if (input.fluidPlan === "REFILL") {
+      const stops = Math.max(0, Math.floor(input.aidStationCount));
+      for (const ml of splitFluid(shortfall, stops)) {
+        items.push({
+          name: "refill",
+          containerName: null,
+          containerId: null,
+          productId: null,
+          productName: null,
+          servings: null,
+          unit: null,
+          volumeMl: null,
+          fluidMl: ml,
+          carryCarbsG: carbKnown ? 0 : null,
+          sodiumMg: carbKnown ? 0 : null,
+          role: "refill",
+          count: null,
+        });
+      }
+    } else {
+      const capacities = containers
+        .filter((container) => container.usualContent !== "GEL_CONCENTRATE")
+        .map((container) => container.capacityMl);
+      const largest = capacities.length > 0 ? Math.max(...capacities) : 0;
+      items.push({
+        name: "more_bottles",
+        containerName: null,
+        containerId: null,
+        productId: null,
+        productName: null,
+        servings: null,
+        unit: null,
+        volumeMl: largest > 0 ? largest : null,
+        fluidMl: shortfall,
+        carryCarbsG: carbKnown ? 0 : null,
+        sodiumMg: carbKnown ? 0 : null,
+        role: "more_bottles",
+        count: largest > 0 ? Math.ceil(shortfall / largest) : null,
+      });
+    }
   }
 
   let sodium = 0;
   let sodiumKnown = carbKnown;
   for (const item of items) {
-    if (item.sodiumMg == null && ((item.carryCarbsG ?? 0) > 0 || (item.fluidMl ?? 0) > 0) && item.role !== "water") {
-      sodiumKnown = false;
-    }
+    const carries = (item.carryCarbsG ?? 0) > 0 || (item.fluidMl ?? 0) > 0;
+    if (item.sodiumMg == null && carries && item.role !== "water") sodiumKnown = false;
     sodium += item.sodiumMg ?? 0;
   }
   if (!carbKnown) sodiumKnown = false;
 
-  return { items, sodium, sodiumKnown, drinkMixGPerMl };
+  const carriedCarbs = items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
+  const carbsRoundedUp = carbKnown && carriedCarbs > input.totalCarbsG;
+
+  return { items, sodium, sodiumKnown, drinkMixGPerMl, carbsRoundedUp };
+}
+
+/**
+ * Half-scoop count for one bottle fill. Gut training starts from 10% w/v.
+ * Fuel mode starts from fluid / preparesMl. Mostly-water uses half of that
+ * count. The result never puts more carbohydrate in the bottle than is left.
+ */
+function scoopsInBottle(
+  drink: FuelProduct,
+  fluidMl: number,
+  gut: boolean,
+  split: CarbSplit,
+  carbsLeft: number,
+): number {
+  if (fluidMl <= 0 || drink.carbsG <= 0 || carbsLeft <= 0) return 0;
+  let full: number;
+  if (gut) {
+    const capG = roundInt(GUT_DRINK_G_PER_ML * fluidMl);
+    full = roundHalf(capG / drink.carbsG);
+    while (full > 0 && grams(full, drink.carbsG) > capG) full -= 0.5;
+  } else {
+    const prepares = drink.preparesMl != null && drink.preparesMl > 0 ? drink.preparesMl : DEFAULT_PREPARES_ML;
+    full = roundHalf(fluidMl / prepares);
+  }
+  let scoops = split === "MOSTLY_WATER" ? roundHalf(full / 2) : full;
+  while (scoops > 0 && grams(scoops, drink.carbsG) > carbsLeft) scoops -= 0.5;
+  return Math.max(0, scoops);
+}
+
+/** Even milliliters across stops. The last stop takes the remainder. No stops means one row. */
+function splitFluid(totalMl: number, stops: number): number[] {
+  if (stops <= 1) return [totalMl];
+  const base = Math.floor(totalMl / stops);
+  const remainder = totalMl - base * stops;
+  return Array.from({ length: stops }, (_, index) => base + (index === stops - 1 ? remainder : 0));
 }

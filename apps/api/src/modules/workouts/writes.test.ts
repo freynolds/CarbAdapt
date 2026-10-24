@@ -69,13 +69,14 @@ test("a manual workout stores a fueling plan from the engine", async () => {
         fuelingPlan: {
           engineVersion: string;
           targetGPerH: number | null;
-          carryList: { carbStatus?: string };
+          carryList: { carbStatus?: string; carbBasis?: string };
         } | null;
       };
     };
     assert.equal(body.workout.fuelingPlan?.engineVersion, ENGINE_VERSION);
-    assert.equal(body.workout.fuelingPlan?.targetGPerH, null);
-    assert.equal(body.workout.fuelingPlan?.carryList.carbStatus, "not_set");
+    assert.equal(body.workout.fuelingPlan?.targetGPerH, 60);
+    assert.equal(body.workout.fuelingPlan?.carryList.carbStatus, "computed");
+    assert.equal(body.workout.fuelingPlan?.carryList.carbBasis, "band_low");
   });
 });
 

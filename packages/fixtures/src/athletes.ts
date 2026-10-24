@@ -49,6 +49,8 @@ function seedAna(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: "GUT_TRAINING",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "20:00",
     briefingDayBefore: true,
   });
@@ -205,6 +207,7 @@ function seedAna(bag: SeedData): void {
         durationMin: 300,
         sport: "CYCLING",
         sweatLPerH: oldSweat,
+        aidStationCount: (plan[1] as number[]).length,
       }),
     });
   }
@@ -618,6 +621,8 @@ function seedBruno(bag: SeedData): void {
     theme: "DARK",
     timezone: DEMO_TIMEZONE,
     mode: "GUT_TRAINING",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "19:30",
     briefingDayBefore: true,
   });
@@ -787,6 +792,7 @@ function seedBruno(bag: SeedData): void {
     description:
       "One plan only, so the screen has no carousel. Refill the flask at the mid-stage aid station.",
     carryList: raceStrategyCarry(bag, userId, {
+      aidStationCount: 1,
       durationMin: 120 + 300 + 180 + 120,
       sport: "TRAIL_RUNNING",
       sweatLPerH: sweat,
@@ -940,6 +946,8 @@ function seedCarla(bag: SeedData): void {
     theme: "LIGHT",
     timezone: DEMO_TIMEZONE,
     mode: "FUEL_MY_WORKOUTS",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "20:30",
     briefingDayBefore: true,
   });
@@ -1278,6 +1286,8 @@ function seedEli(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: "FUEL_MY_WORKOUTS",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "19:00",
     briefingDayBefore: false,
   });
@@ -1579,6 +1589,8 @@ function seedDani(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: null,
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: null,
     briefingDayBefore: true,
   });
@@ -1741,6 +1753,7 @@ function product(
     brand: "CarbAdapt Demo",
     servingG,
     scoopG,
+    preparesMl: type === "DRINK_MIX" ? 500 : null,
     carbsG,
     sodiumMg,
     caffeineMg,

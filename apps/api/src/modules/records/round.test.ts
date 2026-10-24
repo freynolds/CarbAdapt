@@ -230,9 +230,110 @@ test("a race-day workout stays in fuel mode for a gut-training athlete", async (
       headers: { authorization: `Bearer ${token}` },
     });
     const body = (await plan.json()) as {
-      fuelingPlan: { targetGPerH: number | null; carryList: { carbStatus?: string } } | null;
+      fuelingPlan: { targetGPerH: number | null; carryList: { carbStatus?: string; carbBasis?: string } } | null;
     };
-    assert.equal(body.fuelingPlan?.targetGPerH, null);
-    assert.equal(body.fuelingPlan?.carryList.carbStatus, "not_set");
+    assert.equal(body.fuelingPlan?.targetGPerH, 60);
+    assert.equal(body.fuelingPlan?.carryList.carbStatus, "computed");
+    assert.equal(body.fuelingPlan?.carryList.carbBasis, "band_low");
   });
 });
+
+test("a refill plan is plain water and carried carbs cover the gap", async () => {
+  await withAthlete(async ({ baseUrl, token, db, userId }) => {
+    await db.physicalData.create({ data: { userId, sweatRateLPerH: 1 } });
+    await db.user.update({
+      where: { id: userId },
+      data: { mode: "FUEL_MY_WORKOUTS", carbSplit: "BOTTLES_THEN_GELS", fluidPlan: "REFILL" },
+    });
+    await db.container.create({
+      data: { userId, type: "BOTTLE", name: "Road bottle", capacityMl: 750, usualContent: "ISOTONIC" },
+    });
+    await db.product.create({
+      data: { userId, type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500, favorite: true },
+    });
+    await db.product.create({
+      data: { userId, type: "GEL", name: "Gel", carbsG: 22, sodiumMg: 40, favorite: true },
+    });
+    const raceId = testId("race");
+    await db.race.create({
+      data: {
+        id: raceId,
+        userId,
+        name: "Fondo",
+        date: new Date(`${dayOffset(30)}T00:00:00.000Z`),
+        estimatedDurationMin: 120,
+        type: "road",
+        aidStations: {
+          create: [
+            { kmMark: 40, hasWater: true, hasIsotonic: true, hasGels: false },
+            { kmMark: 80, hasWater: true, hasIsotonic: true, hasGels: true },
+          ],
+        },
+      },
+    });
+    const generated = await fetch(`${baseUrl}/races/${raceId}/strategies/generate`, auth(token, {}));
+    assert.equal(generated.status, 201);
+    const body = (await generated.json()) as {
+      race: { strategies: { carryList: { items?: CarryRow[] } }[] };
+    };
+    const items = body.race.strategies[0]?.carryList.items ?? [];
+    const refills = items.filter((item) => item.role === "refill");
+    assert.equal(refills.length, 2);
+    assert.equal(
+      refills.every((item) => item.carryCarbsG === 0),
+      true,
+    );
+    assert.equal(
+      refills.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0),
+      1250,
+    );
+    assert.equal(items.find((item) => item.role === "drink_mix")?.carryCarbsG, 45);
+    assert.equal(items.find((item) => item.role === "gel")?.servings, 1);
+    assert.equal(items.find((item) => item.role === "gel")?.carryCarbsG, 22);
+
+    const patched = await fetch(`${baseUrl}/me`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ carbSplit: "MOSTLY_WATER" }),
+    });
+    assert.equal(patched.status, 200);
+    const me = (await patched.json()) as { user: { carbSplit: string; fluidPlan: string } };
+    assert.equal(me.user.carbSplit, "MOSTLY_WATER");
+    assert.equal(me.user.fluidPlan, "REFILL");
+    const stored = await db.raceStrategy.findFirstOrThrow({ where: { raceId } });
+    const next = stored.carryList as { items: CarryRow[] };
+    assert.equal(next.items.find((item) => item.role === "drink_mix")?.servings, 1);
+    assert.equal(next.items.find((item) => item.role === "drink_mix")?.carryCarbsG, 30);
+    assert.equal(next.items.find((item) => item.role === "gel")?.servings, 2);
+    assert.equal(
+      next.items.filter((item) => item.role === "refill").every((item) => item.carryCarbsG === 0),
+      true,
+    );
+
+    const bottles = await fetch(`${baseUrl}/me`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ fluidPlan: "MORE_BOTTLES" }),
+    });
+    assert.equal(bottles.status, 200);
+    const after = await db.raceStrategy.findFirstOrThrow({ where: { raceId } });
+    const packed = after.carryList as { items: CarryRow[] };
+    assert.equal(
+      packed.items.some((item) => item.role === "refill"),
+      false,
+    );
+    const more = packed.items.find((item) => item.role === "more_bottles");
+    assert.equal(more?.count, 2);
+    assert.equal(more?.carryCarbsG, 0);
+    assert.equal(more?.fluidMl, 1250);
+    assert.equal(packed.items.find((item) => item.role === "gel")?.carryCarbsG, 44);
+  });
+});
+
+type CarryRow = {
+  role?: string;
+  carryCarbsG?: number | null;
+  fluidMl?: number | null;
+  servings?: number | null;
+  count?: number | null;
+};

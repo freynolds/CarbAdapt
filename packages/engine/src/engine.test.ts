@@ -8,10 +8,13 @@ import {
   calibrateSips,
   fuelingPlan,
   ghIncrease,
+  type FuelContainer,
+  type FuelProduct,
   gutRaceAllowed,
   intakePrefill,
   ladderStepG,
   raceBreakfast,
+  TBD,
   recoveryOccasions,
   stageFallbackAt,
   stageRecovery,
@@ -44,7 +47,7 @@ test("duration bands follow Master Plan §7.1 and leave empty cells unset", () =
   assert.equal(carbBand(120, "OTHER").specified, false);
 });
 
-test("fuel mode keeps the band and does not pick a single g/h", () => {
+test("fuel mode uses the low end of the band and does not pick a rate inside it", () => {
   const plan = fuelingPlan({
     durationMin: 120,
     sport: "CYCLING",
@@ -55,11 +58,15 @@ test("fuel mode keeps the band and does not pick a single g/h", () => {
     products: [],
     containers: [],
   });
-  assert.equal(plan.targetGPerH, null);
-  assert.equal(plan.carbStatus, "not_set");
+  assert.equal(TBD.fuelingModeRecommendedGh, null);
+  assert.equal(plan.carbBasis, "band_low");
+  assert.equal(plan.targetGPerH, 30);
+  assert.equal(plan.totalCarbsG, 60);
+  assert.equal(plan.carbStatus, "computed");
   assert.equal(plan.fluidStatus, "not_set");
   assert.equal(plan.scheduleStatus, "not_set");
   assert.deepEqual(plan.schedule, []);
+  assert.equal(plan.items.find((item) => item.role === "extra_powder")?.carryCarbsG, 60);
 });
 
 test("gut training uses the ladder step and sweat rate when both exist", () => {
@@ -81,6 +88,13 @@ test("gut training uses the ladder step and sweat rate when both exist", () => {
   assert.equal(plan.items[0]?.fluidMl, 750);
   assert.equal(plan.items[0]?.volumeMl, 750);
   assert.equal(plan.items[0]?.servings, 2.5);
+  const powder = plan.items.find((item) => item.role === "extra_powder");
+  assert.equal(powder?.servings, 5.5);
+  assert.equal(powder?.carryCarbsG, 165);
+  const extra = plan.items.find((item) => item.role === "more_bottles");
+  assert.equal(extra?.count, 3);
+  assert.equal(extra?.fluidMl, 2250);
+  assert.equal(extra?.carryCarbsG, 0);
   const carbs = plan.items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
   const fluid = plan.items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
   assert.equal(carbs, 240);
@@ -117,14 +131,21 @@ test("gut training fills every container and the rows sum to the session", () =>
   assert.equal(iso?.unit, "scoop");
   assert.equal(iso?.carryCarbsG, 75);
   assert.equal(flask?.productName, "Gel");
-  assert.equal(flask?.carryCarbsG, 165);
+  assert.equal(flask?.servings, 8);
+  assert.equal(flask?.carryCarbsG, 176);
+  assert.equal(plan.carbsRoundedUp, true);
+  const extra = plan.items.find((item) => item.role === "more_bottles");
+  assert.equal(extra?.count, 2);
+  assert.equal(extra?.fluidMl, 1200);
+  assert.equal(extra?.carryCarbsG, 0);
   const carbs = plan.items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
   const fluid = plan.items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
-  assert.equal(carbs, plan.totalCarbsG);
+  assert.equal(carbs, 251);
   assert.equal(fluid, plan.totalFluidMl);
+  assert.equal(plan.totalSodiumMg, 1320);
 });
 
-test("fuel mode lists container products and does not invent carb servings", () => {
+test("fuel mode fills bottles from the label concentration and rounds the rest up", () => {
   const plan = fuelingPlan({
     durationMin: 120,
     sport: "CYCLING",
@@ -135,13 +156,140 @@ test("fuel mode lists container products and does not invent carb servings", () 
     products: [{ id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200 }],
     containers: [{ id: "iso", name: "Road bottle", capacityMl: 750, usualContent: "ISOTONIC" }],
   });
-  assert.equal(plan.carbStatus, "not_set");
-  assert.equal(plan.targetGPerH, null);
+  assert.equal(plan.carbBasis, "band_low");
+  assert.equal(plan.targetGPerH, 30);
+  assert.equal(plan.carbStatus, "computed");
+  assert.equal(plan.totalCarbsG, 60);
   assert.equal(plan.items[0]?.productName, "Mix");
-  assert.equal(plan.items[0]?.servings, null);
-  assert.equal(plan.items[0]?.carryCarbsG, null);
+  assert.equal(plan.items[0]?.servings, 1.5);
+  assert.equal(plan.items[0]?.carryCarbsG, 45);
   assert.equal(plan.items[0]?.fluidMl, 750);
-  assert.equal(plan.items.find((item) => item.role === "unassigned")?.fluidMl, 1250);
+  const powder = plan.items.find((item) => item.role === "extra_powder");
+  assert.equal(powder?.servings, 0.5);
+  assert.equal(powder?.carryCarbsG, 15);
+  const extra = plan.items.find((item) => item.role === "more_bottles");
+  assert.equal(extra?.count, 2);
+  assert.equal(extra?.fluidMl, 1250);
+  assert.equal(extra?.carryCarbsG, 0);
+});
+
+test("a 710 ml bottle takes one and a half scoops", () => {
+  const plan = fuelingPlan({
+    durationMin: 120,
+    sport: "CYCLING",
+    mode: "FUEL_MY_WORKOUTS",
+    currentStepGh: null,
+    chosenGPerH: 40,
+    sweatRateLPerH: 1,
+    products: [
+      { id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500 },
+    ],
+    containers: [{ id: "iso", name: "Bottle", capacityMl: 710, usualContent: "ISOTONIC" }],
+  });
+  assert.equal(plan.items[0]?.servings, 1.5);
+  assert.equal(plan.items[0]?.carryCarbsG, 45);
+});
+
+test("mostly water halves the scoops and more mix also fills water bottles", () => {
+  const products: FuelProduct[] = [
+    { id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500 },
+    { id: "gel", type: "GEL", name: "Gel", carbsG: 22, sodiumMg: 40 },
+  ];
+  const containers: FuelContainer[] = [
+    { id: "water", name: "White bottle", capacityMl: 750, usualContent: "WATER" },
+    { id: "iso", name: "Glucose bottle", capacityMl: 750, usualContent: "ISOTONIC" },
+  ];
+  const shared = {
+    durationMin: 120,
+    sport: "CYCLING" as const,
+    mode: "FUEL_MY_WORKOUTS" as const,
+    currentStepGh: null,
+    chosenGPerH: 60,
+    sweatRateLPerH: 1,
+    products,
+    containers,
+  };
+  const bottles = fuelingPlan({ ...shared, carbSplit: "BOTTLES_THEN_GELS" });
+  assert.equal(bottles.items.find((item) => item.containerId === "water")?.role, "water");
+  assert.equal(bottles.items.find((item) => item.containerId === "water")?.carryCarbsG, 0);
+  assert.equal(bottles.items.find((item) => item.containerId === "iso")?.servings, 1.5);
+  assert.equal(bottles.items.find((item) => item.containerId === "iso")?.carryCarbsG, 45);
+
+  const water = fuelingPlan({ ...shared, carbSplit: "MOSTLY_WATER" });
+  assert.equal(water.items.find((item) => item.containerId === "iso")?.servings, 1);
+  assert.equal(water.items.find((item) => item.containerId === "iso")?.carryCarbsG, 30);
+  assert.equal(water.items.find((item) => item.role === "gel")?.servings, 5);
+
+  const mix = fuelingPlan({ ...shared, carbSplit: "MORE_MIX" });
+  assert.equal(mix.items.find((item) => item.containerId === "water")?.role, "drink_mix");
+  assert.equal(mix.items.find((item) => item.containerId === "water")?.servings, 1.5);
+  assert.equal(mix.items.find((item) => item.containerId === "water")?.carryCarbsG, 45);
+  assert.equal(mix.items.find((item) => item.containerId === "iso")?.carryCarbsG, 45);
+});
+
+test("an aid-station refill is plain water and the missing carbs are carried", () => {
+  const shared = {
+    durationMin: 120,
+    sport: "CYCLING" as const,
+    mode: "FUEL_MY_WORKOUTS" as const,
+    currentStepGh: null,
+    chosenGPerH: null,
+    sweatRateLPerH: 1,
+    carbSplit: "BOTTLES_THEN_GELS" as const,
+    fluidPlan: "REFILL" as const,
+    aidStationCount: 2,
+    containers: [{ id: "iso", name: "Road bottle", capacityMl: 750, usualContent: "ISOTONIC" as const }],
+  };
+  const withGel = fuelingPlan({
+    ...shared,
+    products: [
+      { id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500 },
+      { id: "gel", type: "GEL", name: "Gel", carbsG: 22, sodiumMg: 40 },
+    ],
+  });
+  assert.equal(withGel.totalCarbsG, 60);
+  assert.equal(withGel.items.find((item) => item.role === "drink_mix")?.carryCarbsG, 45);
+  const refills = withGel.items.filter((item) => item.role === "refill");
+  assert.deepEqual(
+    refills.map((item) => item.fluidMl),
+    [625, 625],
+  );
+  assert.equal(refills.every((item) => item.carryCarbsG === 0), true);
+  assert.equal(refills.every((item) => item.productId == null), true);
+  const gel = withGel.items.find((item) => item.role === "gel");
+  assert.equal(gel?.servings, 1);
+  assert.equal(gel?.carryCarbsG, 22);
+  assert.equal(withGel.items.some((item) => item.role === "more_bottles"), false);
+  const carried = withGel.items.reduce((sum, item) => sum + (item.carryCarbsG ?? 0), 0);
+  assert.ok(carried >= withGel.totalCarbsG);
+
+  const powderOnly = fuelingPlan({
+    ...shared,
+    aidStationCount: 0,
+    products: [{ id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500 }],
+  });
+  const oneRefill = powderOnly.items.filter((item) => item.role === "refill");
+  assert.equal(oneRefill.length, 1);
+  assert.equal(oneRefill[0]?.fluidMl, 1250);
+  assert.equal(oneRefill[0]?.carryCarbsG, 0);
+  const powder = powderOnly.items.find((item) => item.role === "extra_powder");
+  assert.equal(powder?.servings, 0.5);
+  assert.equal(powder?.carryCarbsG, 15);
+
+  const uneven = fuelingPlan({
+    ...shared,
+    aidStationCount: 3,
+    sweatRateLPerH: 0.875,
+    products: [{ id: "mix", type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 200, preparesMl: 500 }],
+  });
+  assert.deepEqual(
+    uneven.items.filter((item) => item.role === "refill").map((item) => item.fluidMl),
+    [333, 333, 334],
+  );
+  assert.equal(
+    uneven.items.filter((item) => item.role === "refill").every((item) => item.carryCarbsG === 0),
+    true,
+  );
 });
 
 test("a 30 g/h gap uses 10 g/h steps and a smaller gap uses 5", () => {

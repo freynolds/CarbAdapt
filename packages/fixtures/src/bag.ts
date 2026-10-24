@@ -1,6 +1,8 @@
 import {
   fuelingPlan,
+  type CarbSplit,
   type EngineSport,
+  type FluidPlan,
   type FuelContainer,
   type FuelProduct,
 } from "@carbadapt/engine";
@@ -125,6 +127,7 @@ export function addFueling(
         : "FUEL_MY_WORKOUTS";
   const sport = (typeof workout?.sport === "string" ? workout.sport : "CYCLING") as EngineSport;
   const { products, containers } = athleteGear(bag, userId);
+  const preference = carryPreference(user);
   const planned = fuelingPlan({
     durationMin: input.durationMin,
     sport,
@@ -134,6 +137,8 @@ export function addFueling(
     sweatRateLPerH: input.sweatLPerH,
     products,
     containers,
+    carbSplit: preference.carbSplit,
+    fluidPlan: preference.fluidPlan,
   });
   const totalSodiumMg = planned.totalSodiumMg;
   const every = 20;
@@ -162,15 +167,7 @@ export function addFueling(
     isCurrent: true,
     weather: FIXTURE_WEATHER,
     schedule,
-    carryList: {
-      items: planned.items,
-      carbStatus: planned.carbStatus,
-      fluidStatus: planned.fluidStatus,
-      sodiumStatus: planned.sodiumStatus,
-      scheduleStatus: planned.scheduleStatus,
-      targetBandGPerH: planned.band,
-      drinkMixGPerMl: planned.drinkMixGPerMl,
-    },
+    carryList: carryFields(planned),
   });
 }
 
@@ -192,6 +189,7 @@ function athleteGear(bag: SeedData, userId: string): { products: FuelProduct[]; 
           carbsG: Number(row.carbsG),
           sodiumMg: row.sodiumMg == null ? null : Number(row.sodiumMg),
           scoopG: row.scoopG == null ? null : Number(row.scoopG),
+          preparesMl: row.preparesMl == null ? null : Number(row.preparesMl),
         },
       ];
     });
@@ -212,13 +210,15 @@ function athleteGear(bag: SeedData, userId: string): { products: FuelProduct[]; 
   return { products, containers };
 }
 
-/** Race strategy is fuel mode. A single g/h inside the band stays unset. */
+/** Race strategy is fuel mode. With no chosen rate, carbs use the low end of the duration band. */
 export function raceStrategyCarry(
   bag: SeedData,
   userId: string,
-  input: { durationMin: number; sport: EngineSport; sweatLPerH: number | null },
+  input: { durationMin: number; sport: EngineSport; sweatLPerH: number | null; aidStationCount?: number },
 ) {
   const { products, containers } = athleteGear(bag, userId);
+  const user = bag.users.find((row) => row.id === userId);
+  const preference = carryPreference(user);
   const planned = fuelingPlan({
     durationMin: input.durationMin,
     sport: input.sport,
@@ -228,7 +228,26 @@ export function raceStrategyCarry(
     sweatRateLPerH: input.sweatLPerH,
     products,
     containers,
+    carbSplit: preference.carbSplit,
+    fluidPlan: preference.fluidPlan,
+    aidStationCount: input.aidStationCount ?? 0,
   });
+  return carryFields(planned);
+}
+
+function carryPreference(user: Record<string, unknown> | undefined): { carbSplit: CarbSplit; fluidPlan: FluidPlan } {
+  const carbSplit = user?.carbSplit;
+  const fluidPlan = user?.fluidPlan;
+  return {
+    carbSplit:
+      carbSplit === "MOSTLY_WATER" || carbSplit === "MORE_MIX" || carbSplit === "BOTTLES_THEN_GELS"
+        ? carbSplit
+        : "BOTTLES_THEN_GELS",
+    fluidPlan: fluidPlan === "REFILL" ? "REFILL" : "MORE_BOTTLES",
+  };
+}
+
+function carryFields(planned: ReturnType<typeof fuelingPlan>) {
   return {
     items: planned.items,
     carbStatus: planned.carbStatus,
@@ -237,6 +256,8 @@ export function raceStrategyCarry(
     scheduleStatus: planned.scheduleStatus,
     targetBandGPerH: planned.band,
     drinkMixGPerMl: planned.drinkMixGPerMl,
+    carbBasis: planned.carbBasis,
+    carbsRoundedUp: planned.carbsRoundedUp,
   };
 }
 

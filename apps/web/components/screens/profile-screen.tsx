@@ -121,6 +121,10 @@ export function ProfileScreen() {
         </Link>
       </div>
 
+      {me.status === "ready" ? (
+        <CarryPrefs carbSplit={me.data.user.carbSplit} fluidPlan={me.data.user.fluidPlan} />
+      ) : null}
+
       <p className="ey">{t("prof.gearSection")}</p>
       <div className="cd" style={{ padding: "6px 16px" }}>
         <Link href="/profile/gear" className="td">
@@ -163,6 +167,89 @@ export function ProfileScreen() {
         ))}
       </div>
     </Screen>
+  );
+}
+
+function CarryPrefs({
+  carbSplit,
+  fluidPlan,
+}: {
+  carbSplit: "BOTTLES_THEN_GELS" | "MOSTLY_WATER" | "MORE_MIX";
+  fluidPlan: "MORE_BOTTLES" | "REFILL";
+}) {
+  const { token, t } = useApp();
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+  const [pending, setPending] = useState(false);
+  async function save(body: {
+    carbSplit?: "BOTTLES_THEN_GELS" | "MOSTLY_WATER" | "MORE_MIX";
+    fluidPlan?: "MORE_BOTTLES" | "REFILL";
+  }) {
+    if (!token || pending) return;
+    const sameSplit = body.carbSplit == null || body.carbSplit === carbSplit;
+    const sameFluid = body.fluidPlan == null || body.fluidPlan === fluidPlan;
+    if (sameSplit && sameFluid) return;
+    setPending(true);
+    setError(null);
+    try {
+      await apiSend("/me", { method: "PATCH", token, body, parse: parseMe });
+      window.location.reload();
+    } catch (caught) {
+      setPending(false);
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    }
+  }
+  const why =
+    carbSplit === "MOSTLY_WATER" ? "pref.whyWater" : carbSplit === "MORE_MIX" ? "pref.whyMix" : "pref.whyBottles";
+  return (
+    <>
+      <p className="ey">{t("pref.title")}</p>
+      <div className="cd" style={{ padding: "12px 16px" }}>
+        <p className="mu">{t("pref.split")}</p>
+        <div className="wrap">
+          {(
+            [
+              ["BOTTLES_THEN_GELS", "pref.bottles"],
+              ["MOSTLY_WATER", "pref.water"],
+              ["MORE_MIX", "pref.mix"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={carbSplit === id ? "pill sel" : "pill"}
+              disabled={pending}
+              onClick={() => void save({ carbSplit: id })}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
+        <p className="note">
+          <b>{t("on.why")}</b>
+          {t(why)}
+        </p>
+        <p className="mu">{t("pref.fluid")}</p>
+        <div className="wrap">
+          {(
+            [
+              ["MORE_BOTTLES", "pref.moreBottles"],
+              ["REFILL", "pref.refill"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={fluidPlan === id ? "pill sel" : "pill"}
+              disabled={pending}
+              onClick={() => void save({ fluidPlan: id })}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
+        {error ? <ErrorText code={error} /> : null}
+      </div>
+    </>
   );
 }
 

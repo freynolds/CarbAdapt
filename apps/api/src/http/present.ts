@@ -71,6 +71,8 @@ export function presentUser(user: UserRow): User {
     theme: user.theme,
     timezone: user.timezone,
     mode: user.mode,
+    carbSplit: user.carbSplit,
+    fluidPlan: user.fluidPlan,
     briefingTimeLocal: user.briefingTimeLocal,
     briefingDayBefore: user.briefingDayBefore,
     deletedAt: iso(user.deletedAt),

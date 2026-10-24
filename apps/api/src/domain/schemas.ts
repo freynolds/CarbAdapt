@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   carbLoadingChoiceSchema,
+  carbSplitSchema,
   containerContentSchema,
   containerTypeSchema,
+  fluidPlanSchema,
   localeSchema,
   modeSchema,
   productTypeSchema,
@@ -21,6 +23,8 @@ export const patchMeSchema = z
     theme: themeSchema.optional(),
     timezone: z.string().min(1).optional(),
     mode: modeSchema.nullable().optional(),
+    carbSplit: carbSplitSchema.optional(),
+    fluidPlan: fluidPlanSchema.optional(),
     briefingTimeLocal: z
       .string()
       .regex(/^\d{2}:\d{2}$/)

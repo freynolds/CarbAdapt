@@ -4,11 +4,13 @@ import { HTTP_ERROR_MESSAGE, HttpErrorCode } from "@carbadapt/contracts";
 import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useApp } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { Icon, carryIconName, paintIcon } from "@/components/icons";
 import { formatNumber } from "@/lib/format";
 import { asRecord, asString, carryItems } from "@/lib/json";
+import { parseMe } from "@/lib/parse";
 
 export function Screen({
   title,
@@ -185,17 +187,28 @@ export function CarryList({
   const sodiumSum = items.reduce((sum, item) => sum + (item.sodiumMg ?? 0), 0);
   const carbsKnown = carbStatus === "computed" || items.some((item) => item.carbsG != null);
   const fluidKnown = items.some((item) => item.fluidMl != null);
-  const showNotSplit =
-    carbStatus === "not_set" || items.some((item) => item.role === "unassigned" && (item.carbsG ?? 0) > 0);
+  const showNotSplit = carbStatus === "not_set";
+  const carbBasis = asString(record?.carbBasis);
+  const roundedUp = record?.carbsRoundedUp === true;
+  const hasShortfall = items.some((item) => item.role === "more_bottles" || item.role === "refill");
+  const fluidPlan = items.some((item) => item.role === "refill") ? "REFILL" : "MORE_BOTTLES";
   return (
     <>
       {items.map((item, index) => {
         const title =
-          item.role === "unassigned"
-            ? t("carry.unassigned")
-            : item.role === "water"
-              ? t("carry.water")
-              : (item.productName ?? item.name);
+          item.role === "refill"
+            ? t("carry.refill")
+            : item.role === "more_bottles"
+              ? item.count == null
+                ? t("carry.moreBottlesUnknown")
+                : t("carry.moreBottles", { n: item.count })
+              : item.role === "extra_powder"
+                ? t("carry.extraPowder")
+                : item.role === "unassigned"
+                  ? t("carry.unassigned")
+                  : item.role === "water"
+                    ? t("carry.water")
+                    : (item.productName ?? item.name);
         const amount =
           item.servings == null
             ? notSet
@@ -208,6 +221,13 @@ export function CarryList({
         const carbs = item.carbsG == null ? notSet : `${formatNumber(item.carbsG, locale)} g`;
         const fluid = item.fluidMl == null ? notSet : `${formatNumber(item.fluidMl, locale)} ml`;
         const sodium = item.sodiumMg == null ? notSet : `${formatNumber(item.sodiumMg, locale)} mg`;
+        const plain =
+          item.role === "refill"
+            ? t("carry.refillFluid", { ml: formatNumber(item.fluidMl ?? 0, locale) })
+            : item.role === "more_bottles"
+              ? t("carry.moreBottlesFluid", { ml: formatNumber(item.fluidMl ?? 0, locale) })
+              : null;
+        const skipAmount = item.role === "water" || item.role === "unassigned" || item.role === "refill" || item.role === "more_bottles";
         return (
           <CarryLine
             key={`${item.name}-${index}`}
@@ -215,20 +235,25 @@ export function CarryList({
             kind={item.kind}
             color={item.containerId ? colors?.get(item.containerId) : null}
             detail={
-              <>
-                <div>
-                  {title}
-                  {item.role === "water" || item.role === "unassigned" ? "" : ` · ${amount}`}
-                  {volume ? ` · ${volume}` : ""}
-                </div>
-                <div>
-                  {carbs} · {fluid} · {sodium}
-                </div>
-              </>
+              plain ? (
+                <div>{plain}</div>
+              ) : (
+                <>
+                  <div>
+                    {item.role === "extra_powder" && item.productName ? item.productName : title}
+                    {skipAmount ? "" : ` · ${amount}`}
+                    {volume ? ` · ${volume}` : ""}
+                  </div>
+                  <div>
+                    {carbs} · {fluid} · {sodium}
+                  </div>
+                </>
+              )
             }
           />
         );
       })}
+      {hasShortfall ? <FluidPlanSwitch current={fluidPlan} /> : null}
       <div className="rw" style={{ justifyContent: "space-between" }}>
         <b>{t("carry.total")}</b>
         <span className="m">
@@ -240,7 +265,56 @@ export function CarryList({
         </span>
       </div>
       {showNotSplit ? <p className="mu">{t("carry.notSplit")}</p> : null}
+      {carbBasis === "band_low" ? <p className="mu">{t("carry.bandLow")}</p> : null}
+      {roundedUp ? <p className="mu">{t("carry.rounded")}</p> : null}
     </>
+  );
+}
+
+function FluidPlanSwitch({ current }: { current: "MORE_BOTTLES" | "REFILL" }) {
+  const { token, t } = useApp();
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+  const [pending, setPending] = useState(false);
+  async function choose(fluidPlan: "MORE_BOTTLES" | "REFILL") {
+    if (!token || pending || fluidPlan === current) return;
+    setPending(true);
+    setError(null);
+    try {
+      await apiSend("/me", {
+        method: "PATCH",
+        token,
+        body: { fluidPlan },
+        parse: parseMe,
+      });
+      window.location.reload();
+    } catch (caught) {
+      setPending(false);
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    }
+  }
+  return (
+    <div>
+      <p className="ey">{t("pref.fluid")}</p>
+      <div className="wrap">
+        {(
+          [
+            ["MORE_BOTTLES", "pref.moreBottles"],
+            ["REFILL", "pref.refill"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={current === id ? "pill sel" : "pill"}
+            disabled={pending}
+            onClick={() => void choose(id)}
+          >
+            {t(label)}
+          </button>
+        ))}
+      </div>
+      {error ? <ErrorText code={error} /> : null}
+    </div>
   );
 }
 

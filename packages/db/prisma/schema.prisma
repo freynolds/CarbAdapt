@@ -20,6 +20,17 @@ enum Mode {
   GUT_TRAINING
 }
 
+enum CarbSplit {
+  BOTTLES_THEN_GELS
+  MOSTLY_WATER
+  MORE_MIX
+}
+
+enum FluidPlan {
+  MORE_BOTTLES
+  REFILL
+}
+
 enum Locale {
   EN_US
   ES
@@ -256,6 +267,10 @@ model User {
   timezone          String // IANA, e.g. America/Argentina/Buenos_Aires
   /// Null until the athlete picks a mode (Dani, §5). The plan defaulted this; seed needs "not chosen".
   mode              Mode?
+  /// Bottles take carbohydrate first. The athlete can drink mostly water, or mix the water bottles too.
+  carbSplit         CarbSplit  @default(BOTTLES_THEN_GELS)
+  /// Fluid that does not fit is more bottles, or a plain-water refill.
+  fluidPlan         FluidPlan  @default(MORE_BOTTLES)
   briefingTimeLocal String? // "HH:mm" (#67) – inferred format
   briefingDayBefore Boolean    @default(true) // evening before vs same day (#67)
   createdAt         DateTime   @default(now())
@@ -420,6 +435,8 @@ model Product {
   brand      String?
   servingG   Decimal?      @db.Decimal(6, 2)
   scoopG     Decimal?      @db.Decimal(6, 2) // scoop size from label (#37)
+  /// Milliliters one scoop prepares. Null uses the engine default of 500 ml.
+  preparesMl Int?
   carbsG     Decimal       @db.Decimal(6, 2) // per serving
   sodiumMg   Int?
   caffeineMg Int?

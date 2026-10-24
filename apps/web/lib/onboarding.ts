@@ -16,6 +16,8 @@ export type OnboardingAnswers = {
   bottles: string;
   iso: boolean;
   fuels: string[];
+  carbSplit: "BOTTLES_THEN_GELS" | "MOSTLY_WATER" | "MORE_MIX";
+  fluidPlan: "MORE_BOTTLES" | "REFILL";
   sweat: "estimate" | "test" | null;
   gut: string[];
   mode: "GUT_TRAINING" | "FUEL_MY_WORKOUTS" | null;
@@ -40,6 +42,8 @@ const EMPTY: OnboardingAnswers = {
   bottles: "1",
   iso: true,
   fuels: [],
+  carbSplit: "BOTTLES_THEN_GELS",
+  fluidPlan: "MORE_BOTTLES",
   sweat: null,
   gut: [],
   mode: null,

@@ -42,6 +42,7 @@ export type CarryItem = {
   carbsG: number | null;
   sodiumMg: number | null;
   role: string | null;
+  count: number | null;
   kind: "bottle" | "gel" | "solid" | "drink";
 };
 
@@ -59,7 +60,7 @@ export function carryItems(value: unknown): CarryItem[] {
         ? "gel"
         : role === "solid"
           ? "solid"
-          : role === "drink_mix"
+          : role === "drink_mix" || role === "extra_powder"
             ? "drink"
             : "bottle";
     const unit = asString(row.unit);
@@ -77,6 +78,7 @@ export function carryItems(value: unknown): CarryItem[] {
         carbsG: asNumber(row.carryCarbsG) ?? asNumber(row.carbsPerServing),
         sodiumMg: asNumber(row.sodiumMg),
         role,
+        count: asNumber(row.count),
         kind,
       },
     ];

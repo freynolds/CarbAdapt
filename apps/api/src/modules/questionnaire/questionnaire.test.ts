@@ -164,7 +164,7 @@ test("a fuel-mode plan with unset totals does not prefill zero", async () => {
       headers: jsonHeaders(cookie),
       body: JSON.stringify({
         name: "Fuel",
-        sport: "CYCLING",
+        sport: "OTHER",
         plannedDate: "2026-11-02",
         durationMin: 120,
       }),

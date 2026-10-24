@@ -1612,6 +1612,65 @@ export const messages = {
   },
   "auth.pick": { en: "Choose a profile", es: "Elige un perfil", pt: "Escolhe um perfil" },
   "home.between": { en: "Between stages", es: "Entre etapas", pt: "Entre etapas" },
+  "pref.title": {
+    en: "Carrying carbs and fluid",
+    es: "Cómo llevar carbohidratos y líquido",
+    pt: "Como levar carboidratos e líquido",
+  },
+  "pref.split": { en: "Carbohydrate split", es: "Reparto de carbohidratos", pt: "Divisão dos carboidratos" },
+  "pref.fluid": {
+    en: "Fluid that does not fit",
+    es: "Líquido que no cabe",
+    pt: "Líquido que não cabe",
+  },
+  "pref.bottles": {
+    en: "Bottles first, then gels",
+    es: "Primero los bidones, luego los geles",
+    pt: "Primeiro os bidões, depois os géis",
+  },
+  "pref.whyBottles": {
+    en: "Filling the bottles first means fewer extra items, fluid and carbs together, and fewer gel openings and movements.",
+    es: "Llenar primero los bidones supone menos cosas extra, líquido y carbohidratos juntos, y menos aperturas y movimientos con los geles.",
+    pt: "Encher primeiro os bidões significa menos coisas extra, líquido e carboidratos juntos, e menos aberturas e movimentos com os géis.",
+  },
+  "pref.water": { en: "Mostly water", es: "Sobre todo agua", pt: "Sobretudo água" },
+  "pref.whyWater": {
+    en: "Half the mix goes in the bottles. The rest of the carbohydrate comes from gels.",
+    es: "La mitad de la mezcla va en los bidones. El resto del carbohidrato sale de los geles.",
+    pt: "Metade da mistura vai nos bidões. O resto do carboidrato vem dos géis.",
+  },
+  "pref.mix": { en: "More mix in the bottles", es: "Más mezcla en los bidones", pt: "Mais mistura nos bidões" },
+  "pref.whyMix": {
+    en: "Water bottles get the same mix, so more carbohydrate is in what you drink.",
+    es: "Los bidones de agua llevan la misma mezcla, así que hay más carbohidrato en lo que bebes.",
+    pt: "Os bidões de água levam a mesma mistura, por isso há mais carboidrato no que bebes.",
+  },
+  "pref.moreBottles": { en: "Carry more bottles", es: "Llevar más bidones", pt: "Levar mais bidões" },
+  "pref.refill": { en: "Refill with water", es: "Rellenar con agua", pt: "Reabastecer com água" },
+  "carry.refill": { en: "Refill with water", es: "Relleno con agua", pt: "Reabastecimento com água" },
+  "carry.refillFluid": {
+    en: "{ml} ml of plain water, 0 g carbs",
+    es: "{ml} ml de agua sola, 0 g de carbohidratos",
+    pt: "{ml} ml de água pura, 0 g de carboidratos",
+  },
+  "carry.moreBottles": { en: "Add {n} bottles", es: "Añade {n} bidones", pt: "Acrescenta {n} bidões" },
+  "carry.moreBottlesUnknown": { en: "Add more bottles", es: "Añade más bidones", pt: "Acrescenta mais bidões" },
+  "carry.moreBottlesFluid": {
+    en: "{ml} ml still to carry, 0 g carbs",
+    es: "{ml} ml que aún hay que llevar, 0 g de carbohidratos",
+    pt: "{ml} ml ainda por levar, 0 g de carboidratos",
+  },
+  "carry.extraPowder": { en: "Extra powder to carry", es: "Polvo extra para llevar", pt: "Pó extra para levar" },
+  "carry.bandLow": {
+    en: "Carbs use the low end of the duration band.",
+    es: "Los carbohidratos usan el extremo bajo de la banda de duración.",
+    pt: "Os carboidratos usam o extremo baixo da faixa de duração.",
+  },
+  "carry.rounded": {
+    en: "Gels round up to whole units and powder rounds to the next half scoop, so what you carry can be higher than the session target.",
+    es: "Los geles redondean hacia arriba a unidades enteras y el polvo a la media medida siguiente, así que lo que llevas puede superar el objetivo de la sesión.",
+    pt: "Os géis arredondam para cima para unidades inteiras e o pó para a meia medida seguinte, por isso o que levas pode passar o alvo da sessão.",
+  },
 } as const satisfies Record<string, Trio>;
 
 export type MessageId = keyof typeof messages;

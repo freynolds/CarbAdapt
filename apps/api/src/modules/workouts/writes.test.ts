@@ -186,6 +186,9 @@ test("a goal above 200 is rejected", async () => {
 
 test("sweat test completion writes the rate", async () => {
   await withAthlete(async ({ baseUrl, token, db, userId }) => {
+    await db.physicalData.create({
+      data: { userId, sweatRateLPerH: 0.4, sweatRateSource: "estimate" },
+    });
     const created = await fetch(`${baseUrl}/sweat-tests`, {
       method: "POST",
       headers: auth(token),
@@ -214,6 +217,8 @@ test("sweat test completion writes the rate", async () => {
     assert.ok(Math.abs(body.sweatTest.sweatRateLPerH - 1.5) < 0.05);
     const physical = await db.physicalData.findUnique({ where: { userId } });
     assert.equal(physical?.sweatRateSource, "sweat_test");
+    assert.ok(physical?.sweatRateLPerH != null);
+    assert.ok(Math.abs(Number(physical.sweatRateLPerH) - 1.5) < 0.05);
   });
 });
 

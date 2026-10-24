@@ -91,6 +91,8 @@ export async function writeFuelingPlan(
     carbSplit: ctx.user.carbSplit,
     fluidPlan: ctx.user.fluidPlan,
     aidStationCount: await aidStopsForWorkout(db, workout.stageId),
+    raceMaxCarb: raceDay,
+    toleranceGh: ctx.user.physical?.ghTolerance ?? null,
   });
   await db.fuelingPlan.updateMany({
     where: { workoutId: workout.id, isCurrent: true },

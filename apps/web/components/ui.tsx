@@ -170,27 +170,47 @@ export function BigStats({ items }: { items: { value: string; label: string }[] 
   );
 }
 
+export type CarryExtra = {
+  key: string;
+  name: string;
+  detail: string;
+  fluidMl: number;
+  carbsG: number;
+  sodiumMg: number;
+};
+
 export function CarryList({
   plan,
   colors,
+  hideFluidChoice = false,
+  extra = [],
 }: {
   plan: unknown;
   colors?: Map<string, string | null>;
+  /** Race detail owns bottles and stops, so the profile fluid toggle stays off this card. */
+  hideFluidChoice?: boolean;
+  extra?: CarryExtra[];
 }) {
   const { t, locale } = useApp();
-  const items = carryItems(plan);
+  const items = carryItems(plan).filter(
+    (item) => !hideFluidChoice || (item.role !== "more_bottles" && item.role !== "refill"),
+  );
   const record = asRecord(plan);
   const carbStatus = asString(record?.carbStatus);
   const notSet = t("common.notSet");
-  const carbSum = items.reduce((sum, item) => sum + (item.carbsG ?? 0), 0);
-  const fluidSum = items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0);
-  const sodiumSum = items.reduce((sum, item) => sum + (item.sodiumMg ?? 0), 0);
-  const carbsKnown = carbStatus === "computed" || items.some((item) => item.carbsG != null);
-  const fluidKnown = items.some((item) => item.fluidMl != null);
+  const carbSum =
+    items.reduce((sum, item) => sum + (item.carbsG ?? 0), 0) + extra.reduce((sum, item) => sum + item.carbsG, 0);
+  const fluidSum =
+    items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0) + extra.reduce((sum, item) => sum + item.fluidMl, 0);
+  const sodiumSum =
+    items.reduce((sum, item) => sum + (item.sodiumMg ?? 0), 0) + extra.reduce((sum, item) => sum + item.sodiumMg, 0);
+  const carbsKnown = carbStatus === "computed" || items.some((item) => item.carbsG != null) || extra.length > 0;
+  const fluidKnown = items.some((item) => item.fluidMl != null) || extra.some((item) => item.fluidMl > 0);
   const showNotSplit = carbStatus === "not_set";
   const carbBasis = asString(record?.carbBasis);
   const roundedUp = record?.carbsRoundedUp === true;
-  const hasShortfall = items.some((item) => item.role === "more_bottles" || item.role === "refill");
+  const hasShortfall =
+    !hideFluidChoice && items.some((item) => item.role === "more_bottles" || item.role === "refill");
   const fluidPlan = items.some((item) => item.role === "refill") ? "REFILL" : "MORE_BOTTLES";
   return (
     <>
@@ -259,6 +279,9 @@ export function CarryList({
           />
         );
       })}
+      {extra.map((item) => (
+        <CarryLine key={item.key} name={item.name} kind="bottle" detail={<div>{item.detail}</div>} />
+      ))}
       {hasShortfall ? <FluidPlanSwitch current={fluidPlan} /> : null}
       <div className="rw" style={{ justifyContent: "space-between" }}>
         <b>{t("carry.total")}</b>
@@ -272,6 +295,7 @@ export function CarryList({
       </div>
       {showNotSplit ? <p className="mu">{t("carry.notSplit")}</p> : null}
       {carbBasis === "band_low" ? <p className="mu">{t("carry.bandLow")}</p> : null}
+      {carbBasis === "band_max" ? <p className="mu">{t("carry.bandMax")}</p> : null}
       {roundedUp ? <p className="mu">{t("carry.rounded")}</p> : null}
     </>
   );

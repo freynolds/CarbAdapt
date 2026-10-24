@@ -51,8 +51,12 @@ export type CarbSplit = "BOTTLES_THEN_GELS" | "MOSTLY_WATER" | "MORE_MIX";
 /** What to do with fluid that does not fit in the bottles the athlete owns. */
 export type FluidPlan = "MORE_BOTTLES" | "REFILL";
 
-/** Where a numeric carb rate came from. `band_low` is the low end of §7.1, not a single recommended rate. */
-export type CarbBasis = "chosen" | "ladder" | "band_low" | "not_set";
+/**
+ * Where a numeric carb rate came from.
+ * `band_low` is the low end of §7.1. `band_max` is the high end, capped by tolerance on a race day.
+ * Neither is a single recommended rate inside the band.
+ */
+export type CarbBasis = "chosen" | "ladder" | "band_low" | "band_max" | "not_set";
 
 export type FuelProduct = {
   id: string;
@@ -153,6 +157,12 @@ export function fuelingPlan(input: {
    * Zero means one refill row for the whole shortfall.
    */
   aidStationCount?: number;
+  /**
+   * Race day, with no chosen rate, uses the high end of the duration band.
+   * A positive tolerance below that high end caps the rate.
+   */
+  raceMaxCarb?: boolean;
+  toleranceGh?: number | null;
 }): FuelingResult {
   const duration = input.durationMin ?? 0;
   const band = input.durationMin == null ? carbBand(0, "OTHER") : carbBand(duration, input.sport);
@@ -203,11 +213,18 @@ function resolveTarget(
     mode: "FUEL_MY_WORKOUTS" | "GUT_TRAINING" | null;
     currentStepGh: number | null;
     chosenGPerH: number | null;
+    raceMaxCarb?: boolean;
+    toleranceGh?: number | null;
   },
   band: CarbBand,
 ): { target: number | null; basis: CarbBasis } {
   if (input.durationMin == null) return { target: null, basis: "not_set" };
   if (input.chosenGPerH != null) return { target: input.chosenGPerH, basis: "chosen" };
+  if (input.raceMaxCarb && band.specified && band.maxGPerH != null) {
+    const cap = input.toleranceGh;
+    const target = cap != null && cap > 0 && cap < band.maxGPerH ? cap : band.maxGPerH;
+    return { target: roundInt(target), basis: "band_max" };
+  }
   if (input.mode === "GUT_TRAINING" && input.currentStepGh != null) {
     return { target: input.currentStepGh, basis: "ladder" };
   }

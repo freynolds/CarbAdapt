@@ -18,6 +18,7 @@ import {
   StepSegments,
   TypeChip,
 } from "@/components/ui";
+import { RacePlanCard } from "@/components/race-plan";
 import { RecoveryBlurb } from "@/components/recovery-blurb";
 import { formatDay, formatDuration, formatNumber } from "@/lib/format";
 import { blocksOf, scheduleOf, type BlockRow, type ScheduleMark } from "@/lib/json";
@@ -223,13 +224,27 @@ export function WorkoutScreen({ id }: { id: string }) {
               <Preview />
             </div>
           ) : null}
-          <div className="rw" style={{ justifyContent: "space-between" }}>
-            <span className="ey">{t("home.carry")}</span>
-            <Link href="/profile/products/new" className="plus" aria-label={t("home.addScan")}>
-              +
-            </Link>
-          </div>
-          <CarryList plan={plan.carryList} colors={colorById} />
+          {row.stageId ? (
+            <div className="cd" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="rw" style={{ justifyContent: "space-between" }}>
+                <span className="ey">{t("home.carry")}</span>
+                <Link href="/profile/products/new" className="plus" aria-label={t("home.addScan")}>
+                  +
+                </Link>
+              </div>
+              <RacePlanCard workoutId={row.id} plan={plan.carryList} colors={colorById} />
+            </div>
+          ) : (
+            <>
+              <div className="rw" style={{ justifyContent: "space-between" }}>
+                <span className="ey">{t("home.carry")}</span>
+                <Link href="/profile/products/new" className="plus" aria-label={t("home.addScan")}>
+                  +
+                </Link>
+              </div>
+              <CarryList plan={plan.carryList} colors={colorById} />
+            </>
+          )}
           <StageRecovery stageId={row.stageId} races={races.status === "ready" ? races.data.races : []} />
         </>
       ) : null}

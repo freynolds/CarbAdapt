@@ -23,6 +23,7 @@ import {
   productResponseSchema,
   progressResponseSchema,
   raceListSchema,
+  racePlanResponseSchema,
   raceResponseSchema,
   stageRecoveryResponseSchema,
   sweatTestListSchema,
@@ -50,6 +51,7 @@ export const parseSweatTests = (value: unknown) => sweatTestListSchema.parse(val
 export const parseSweatTest = (value: unknown) => sweatTestResponseSchema.parse(value);
 export const parseRaces = (value: unknown) => raceListSchema.parse(value);
 export const parseRace = (value: unknown) => raceResponseSchema.parse(value);
+export const parseRacePlan = (value: unknown) => racePlanResponseSchema.parse(value);
 export const parseRecovery = (value: unknown) => stageRecoveryResponseSchema.parse(value);
 export const parseLoading = (value: unknown) => loadingDayResponseSchema.parse(value);
 export const parseBreakfast = (value: unknown) => breakfastResponseSchema.parse(value);

@@ -81,6 +81,13 @@ export {
   type Range,
 } from "./stage-recovery.js";
 export { ghIncrease } from "./achievements.js";
+export {
+  raceFluidTimeline,
+  type RaceFluidKind,
+  type RaceFluidPoint,
+  type RaceFluidRefill,
+  type RaceFluidTimeline,
+} from "./race-fluid.js";
 export { intakePrefill, type IntakePrefill, type PrefillSource } from "./prefill.js";
 export {
   stageFallbackAt,

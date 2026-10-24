@@ -232,9 +232,9 @@ test("a race-day workout stays in fuel mode for a gut-training athlete", async (
     const body = (await plan.json()) as {
       fuelingPlan: { targetGPerH: number | null; carryList: { carbStatus?: string; carbBasis?: string } } | null;
     };
-    assert.equal(body.fuelingPlan?.targetGPerH, 60);
+    assert.equal(body.fuelingPlan?.targetGPerH, 80);
     assert.equal(body.fuelingPlan?.carryList.carbStatus, "computed");
-    assert.equal(body.fuelingPlan?.carryList.carbBasis, "band_low");
+    assert.equal(body.fuelingPlan?.carryList.carbBasis, "band_max");
   });
 });
 

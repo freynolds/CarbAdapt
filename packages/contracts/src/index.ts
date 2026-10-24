@@ -12,6 +12,7 @@ export * from "./products.js";
 export * from "./foods.js";
 export * from "./fueling.js";
 export * from "./workouts.js";
+export * from "./race-plan.js";
 export * from "./questionnaire.js";
 export * from "./gut-training.js";
 export * from "./achievements.js";

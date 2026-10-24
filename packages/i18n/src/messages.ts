@@ -1649,16 +1649,16 @@ export const messages = {
   "pref.refill": { en: "Refill with water", es: "Rellenar con agua", pt: "Reabastecer com água" },
   "carry.refill": { en: "Refill with water", es: "Relleno con agua", pt: "Reabastecimento com água" },
   "carry.refillFluid": {
-    en: "{ml} ml of plain water, 0 g carbs",
-    es: "{ml} ml de agua sola, 0 g de carbohidratos",
-    pt: "{ml} ml de água pura, 0 g de carboidratos",
+    en: "{ml} ml of plain water, {carbs} g carbs",
+    es: "{ml} ml de agua sola, {carbs} g de carbohidratos",
+    pt: "{ml} ml de água pura, {carbs} g de carboidratos",
   },
   "carry.moreBottles": { en: "Add {n} bottles", es: "Añade {n} bidones", pt: "Acrescenta {n} bidões" },
   "carry.moreBottlesUnknown": { en: "Add more bottles", es: "Añade más bidones", pt: "Acrescenta mais bidões" },
   "carry.moreBottlesFluid": {
-    en: "{ml} ml still to carry, 0 g carbs",
-    es: "{ml} ml que aún hay que llevar, 0 g de carbohidratos",
-    pt: "{ml} ml ainda por levar, 0 g de carboidratos",
+    en: "{ml} ml still to carry, {carbs} g carbs",
+    es: "{ml} ml que aún hay que llevar, {carbs} g de carbohidratos",
+    pt: "{ml} ml ainda por levar, {carbs} g de carboidratos",
   },
   "carry.extraPowder": { en: "Extra powder to carry", es: "Polvo extra para llevar", pt: "Pó extra para levar" },
   "carry.bandLow": {

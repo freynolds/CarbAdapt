@@ -223,9 +223,15 @@ export function CarryList({
         const sodium = item.sodiumMg == null ? notSet : `${formatNumber(item.sodiumMg, locale)} mg`;
         const plain =
           item.role === "refill"
-            ? t("carry.refillFluid", { ml: formatNumber(item.fluidMl ?? 0, locale) })
+            ? t("carry.refillFluid", {
+                ml: formatNumber(item.fluidMl ?? 0, locale),
+                carbs: formatNumber(item.carbsG ?? 0, locale),
+              })
             : item.role === "more_bottles"
-              ? t("carry.moreBottlesFluid", { ml: formatNumber(item.fluidMl ?? 0, locale) })
+              ? t("carry.moreBottlesFluid", {
+                  ml: formatNumber(item.fluidMl ?? 0, locale),
+                  carbs: formatNumber(item.carbsG ?? 0, locale),
+                })
               : null;
         const skipAmount = item.role === "water" || item.role === "unassigned" || item.role === "refill" || item.role === "more_bottles";
         return (

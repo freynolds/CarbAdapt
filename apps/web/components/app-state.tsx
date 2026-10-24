@@ -279,25 +279,9 @@ export function useGet<T>(path: string | null, parse: (value: unknown) => T): Lo
 }
 
 export function DevBar() {
-  const { athletes, athleteId, locale, theme, setLocale, setTheme, login, t } = useApp();
+  const { locale, theme, setLocale, setTheme, t } = useApp();
   return (
     <div className="devbar">
-      <label>
-        {t("common.athlete")}
-        <select
-          value={athleteId ?? ""}
-          onChange={(event) => {
-            if (event.target.value) void login(event.target.value);
-          }}
-        >
-          <option value="">{t("common.athlete")}</option>
-          {athletes.map((athlete) => (
-            <option key={athlete.athleteId} value={athlete.athleteId}>
-              {athlete.name ?? athlete.athleteId}
-            </option>
-          ))}
-        </select>
-      </label>
       <label>
         {t("common.language")}
         <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>

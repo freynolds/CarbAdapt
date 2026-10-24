@@ -278,7 +278,7 @@ export function CarryList({
 }
 
 function FluidPlanSwitch({ current }: { current: "MORE_BOTTLES" | "REFILL" }) {
-  const { token, t } = useApp();
+  const { token, t, refreshData } = useApp();
   const [error, setError] = useState<HttpErrorCode | null>(null);
   const [pending, setPending] = useState(false);
   async function choose(fluidPlan: "MORE_BOTTLES" | "REFILL") {
@@ -292,10 +292,11 @@ function FluidPlanSwitch({ current }: { current: "MORE_BOTTLES" | "REFILL" }) {
         body: { fluidPlan },
         parse: parseMe,
       });
-      window.location.reload();
+      refreshData();
     } catch (caught) {
-      setPending(false);
       setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setPending(false);
     }
   }
   return (

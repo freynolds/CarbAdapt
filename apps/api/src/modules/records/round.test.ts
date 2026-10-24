@@ -330,6 +330,107 @@ test("a refill plan is plain water and carried carbs cover the gap", async () =>
   });
 });
 
+test("switching the fluid plan updates a stage workout carry list", async () => {
+  await withAthlete(async ({ baseUrl, token, db, userId }) => {
+    await db.physicalData.create({ data: { userId, sweatRateLPerH: 0.8 } });
+    await db.user.update({
+      where: { id: userId },
+      data: { mode: "FUEL_MY_WORKOUTS", carbSplit: "BOTTLES_THEN_GELS", fluidPlan: "MORE_BOTTLES" },
+    });
+    await db.container.create({
+      data: { userId, type: "BOTTLE", name: "Road bottle", capacityMl: 750, usualContent: "ISOTONIC" },
+    });
+    await db.product.create({
+      data: { userId, type: "DRINK_MIX", name: "Mix", carbsG: 30, sodiumMg: 400, preparesMl: 500, favorite: true },
+    });
+    const raceId = testId("race");
+    const stageId = testId("stg");
+    const workoutId = testId("wrk");
+    const day = dayOffset(1);
+    await db.race.create({
+      data: {
+        id: raceId,
+        userId,
+        name: "Vuelta",
+        date: new Date(`${day}T00:00:00.000Z`),
+        estimatedDurationMin: 180,
+        type: "road",
+        stages: {
+          create: {
+            id: stageId,
+            index: 7,
+            date: new Date(`${day}T00:00:00.000Z`),
+            startAt: new Date(`${day}T12:00:00.000Z`),
+            estimatedDurationMin: 180,
+            type: "road_stage",
+            aidStations: {
+              create: { kmMark: 40, hasWater: true, hasIsotonic: true, hasGels: false },
+            },
+          },
+        },
+      },
+    });
+    await db.workout.create({
+      data: {
+        id: workoutId,
+        userId,
+        source: "MANUAL",
+        sport: "CYCLING",
+        name: "Stage 7",
+        plannedDate: new Date(`${day}T00:00:00.000Z`),
+        durationMin: 180,
+        status: "PLANNED",
+        stageId,
+      },
+    });
+
+    async function carry(): Promise<CarryRow[]> {
+      const response = await fetch(`${baseUrl}/workouts/${workoutId}`, auth(token));
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        workout: { fuelingPlan: { carryList: { items?: CarryRow[] } } | null };
+      };
+      return body.workout.fuelingPlan?.carryList.items ?? [];
+    }
+
+    const refill = await fetch(`${baseUrl}/me`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ fluidPlan: "REFILL" }),
+    });
+    assert.equal(refill.status, 200);
+    const refilled = await carry();
+    const water = refilled.filter((item) => item.role === "refill");
+    assert.equal(water.length, 1);
+    assert.equal(water[0]?.carryCarbsG, 0);
+    assert.equal(water[0]?.fluidMl, 1650);
+    assert.equal(
+      refilled.some((item) => item.role === "more_bottles"),
+      false,
+    );
+
+    const bottles = await fetch(`${baseUrl}/me`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ fluidPlan: "MORE_BOTTLES" }),
+    });
+    assert.equal(bottles.status, 200);
+    const packed = await carry();
+    assert.equal(
+      packed.some((item) => item.role === "refill"),
+      false,
+    );
+    const more = packed.find((item) => item.role === "more_bottles");
+    assert.equal(more?.count, 3);
+    assert.equal(more?.carryCarbsG, 0);
+    assert.equal(more?.fluidMl, 1650);
+    assert.equal(
+      packed.find((item) => item.role === "drink_mix")?.carryCarbsG,
+      refilled.find((item) => item.role === "drink_mix")?.carryCarbsG,
+    );
+  });
+});
+
 type CarryRow = {
   role?: string;
   carryCarbsG?: number | null;

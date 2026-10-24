@@ -37,6 +37,7 @@ export async function apiSend<T>(
   try {
     response = await fetch(`/backend${path}`, {
       method: options.method ?? "GET",
+      cache: "no-store",
       headers: {
         ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),

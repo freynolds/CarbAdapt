@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -57,6 +58,8 @@ type AppContextValue = {
   login: (athleteId: string) => Promise<void>;
   acceptSession: (token: string, userId: string) => Promise<void>;
   logout: () => void;
+  refreshData: () => void;
+  dataVersion: number;
   t: (id: MessageId, vars?: Record<string, string | number>) => string;
 };
 
@@ -88,6 +91,7 @@ export function AppState({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [locale, setLocaleState] = useState<Locale>("en");
   const [theme, setThemeState] = useState<ThemeChoice>("system");
+  const [dataVersion, setDataVersion] = useState(0);
 
   useEffect(() => {
     const storedTheme = readTheme();
@@ -184,6 +188,10 @@ export function AppState({ children }: { children: ReactNode }) {
     [acceptSession],
   );
 
+  const refreshData = useCallback(() => {
+    setDataVersion((version) => version + 1);
+  }, []);
+
   const logout = useCallback(() => {
     const current = window.localStorage.getItem(TOKEN_KEY);
     if (current) {
@@ -217,6 +225,8 @@ export function AppState({ children }: { children: ReactNode }) {
       login,
       acceptSession,
       logout,
+      refreshData,
+      dataVersion,
       t,
     }),
     [
@@ -227,11 +237,13 @@ export function AppState({ children }: { children: ReactNode }) {
       me,
       locale,
       theme,
+      dataVersion,
       setLocale,
       setTheme,
       login,
       acceptSession,
       logout,
+      refreshData,
       t,
     ],
   );
@@ -246,10 +258,12 @@ export function useApp(): AppContextValue {
 }
 
 export function useGet<T>(path: string | null, parse: (value: unknown) => T): Load<T> {
-  const { token } = useApp();
+  const { token, dataVersion } = useApp();
   const [state, setState] = useState<Load<T>>({ status: "loading" });
+  const readyFor = useRef<{ path: string | null; token: string | null } | null>(null);
 
   useEffect(() => {
+    const silent = readyFor.current?.path === path && readyFor.current?.token === token;
     if (!path) {
       setState({ status: "idle" });
       return;
@@ -260,20 +274,22 @@ export function useGet<T>(path: string | null, parse: (value: unknown) => T): Lo
       return;
     }
     let cancel = false;
-    setState({ status: "loading" });
+    if (!silent) setState({ status: "loading" });
     apiSend(path, { token, parse })
       .then((data) => {
-        if (!cancel) setState({ status: "ready", data });
+        if (cancel) return;
+        readyFor.current = { path, token };
+        setState({ status: "ready", data });
       })
       .catch((error: unknown) => {
-        if (cancel) return;
+        if (cancel || silent) return;
         const code = error instanceof ApiError ? error.code : HttpErrorCode.InternalError;
         setState({ status: "error", code });
       });
     return () => {
       cancel = true;
     };
-  }, [path, token, parse]);
+  }, [path, token, parse, dataVersion]);
 
   return state;
 }

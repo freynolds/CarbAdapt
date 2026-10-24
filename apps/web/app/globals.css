@@ -43,42 +43,6 @@ button {
   align-items: center;
 }
 
-.devbar {
-  width: min(720px, 100%);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: center;
-  padding: 10px 12px;
-  color: var(--ca-bone);
-  background: #0a1220;
-  font-size: 12px;
-}
-
-:root[data-theme="light"] .devbar {
-  color: var(--ca-night);
-  background: #e7e2d6;
-}
-
-.devbar label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.devbar select {
-  background: transparent;
-  border: 1px solid currentColor;
-  border-radius: 8px;
-  padding: 4px 6px;
-}
-
-.devbar p {
-  margin: 0;
-  flex-basis: 100%;
-  opacity: 0.8;
-}
-
 .column {
   width: min(var(--column), 100%);
   flex: 1;

@@ -38,21 +38,6 @@ export const messages = {
     es: "Hay que completarlo",
     pt: "Tem de ser concluído",
   },
-  "common.draft": {
-    en: "Draft translation",
-    es: "Traducción en borrador",
-    pt: "Tradução em rascunho",
-  },
-  "common.column": {
-    en: "Desktop shows the iPhone layout in a centered column. A wider layout is not designed yet.",
-    es: "En el escritorio se ve el diseño del iPhone en una columna centrada. Un diseño más ancho aún no existe.",
-    pt: "No computador, o layout do iPhone aparece numa coluna centrada. Um layout mais largo ainda não existe.",
-  },
-  "common.theme": { en: "Theme", es: "Tema", pt: "Tema" },
-  "common.system": { en: "System", es: "Sistema", pt: "Sistema" },
-  "common.light": { en: "Light", es: "Claro", pt: "Claro" },
-  "common.dark": { en: "Dark", es: "Oscuro", pt: "Escuro" },
-  "common.language": { en: "Language", es: "Idioma", pt: "Idioma" },
   "common.signInFirst": {
     en: "Sign in as a demo athlete to open this screen.",
     es: "Entra como atleta de prueba para abrir esta pantalla.",

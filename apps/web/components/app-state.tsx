@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  localeFromUser,
-  TRANSLATION_STATUS,
-  translate,
-  type Locale,
-  type MessageId,
-} from "@carbadapt/i18n";
+import { localeFromUser, translate, type Locale, type MessageId } from "@carbadapt/i18n";
 import { HttpErrorCode, type MeResponse } from "@carbadapt/contracts";
 import {
   createContext,
@@ -292,30 +286,4 @@ export function useGet<T>(path: string | null, parse: (value: unknown) => T): Lo
   }, [path, token, parse, dataVersion]);
 
   return state;
-}
-
-export function DevBar() {
-  const { locale, theme, setLocale, setTheme, t } = useApp();
-  return (
-    <div className="devbar">
-      <label>
-        {t("common.language")}
-        <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
-          <option value="en">EN</option>
-          <option value="es">ES</option>
-          <option value="pt">PT</option>
-        </select>
-      </label>
-      <label>
-        {t("common.theme")}
-        <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeChoice)}>
-          <option value="system">{t("common.system")}</option>
-          <option value="light">{t("common.light")}</option>
-          <option value="dark">{t("common.dark")}</option>
-        </select>
-      </label>
-      {TRANSLATION_STATUS[locale] === "draft" ? <span>{t("common.draft")}</span> : null}
-      <p>{t("common.column")}</p>
-    </div>
-  );
 }

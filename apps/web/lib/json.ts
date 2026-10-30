@@ -31,9 +31,18 @@ export function displayJson(value: unknown): string {
 
 export type CarryItem = {
   name: string;
-  detail: string;
+  productName: string | null;
+  containerName: string | null;
   containerId: string | null;
   productId: string | null;
+  servings: number | null;
+  unit: "serving" | "scoop" | "unit" | null;
+  volumeMl: number | null;
+  fluidMl: number | null;
+  carbsG: number | null;
+  sodiumMg: number | null;
+  role: string | null;
+  count: number | null;
   kind: "bottle" | "gel" | "solid" | "drink";
 };
 
@@ -42,31 +51,62 @@ export function carryItems(value: unknown): CarryItem[] {
   return asArray(record?.items).flatMap((item) => {
     const row = asRecord(item);
     if (!row) return [];
-    const name = asString(row.name) ?? asString(row.containerName) ?? "—";
-    const servings = asNumber(row.servings);
-    const carbs = asNumber(row.carryCarbsG) ?? asNumber(row.carbsPerServing);
     const containerName = asString(row.containerName);
-    const detail = containerName
-      ? servings != null
-        ? `${servings} × · ${carbs ?? "—"} g`
-        : name
-      : servings != null
-        ? `${servings} × · ${carbs ?? "—"} g`
-        : carbs != null
-          ? `${carbs} g`
-          : "";
-    const kind: CarryItem["kind"] = containerName
-      ? "bottle"
-      : name.toLowerCase().includes("gel")
+    const productName = asString(row.productName);
+    const name = asString(row.name) ?? containerName ?? productName ?? "—";
+    const role = asString(row.role);
+    const kind: CarryItem["kind"] =
+      role === "gel" || name.toLowerCase().includes("gel")
         ? "gel"
-        : "solid";
+        : role === "solid"
+          ? "solid"
+          : role === "drink_mix" || role === "extra_powder"
+            ? "drink"
+            : "bottle";
+    const unit = asString(row.unit);
     return [
       {
         name: containerName ?? name,
-        detail: containerName ? name : detail,
+        productName,
+        containerName,
         containerId: asString(row.containerId),
         productId: asString(row.productId),
+        servings: asNumber(row.servings),
+        unit: unit === "serving" || unit === "scoop" || unit === "unit" ? unit : null,
+        volumeMl: asNumber(row.volumeMl),
+        fluidMl: asNumber(row.fluidMl),
+        carbsG: asNumber(row.carryCarbsG) ?? asNumber(row.carbsPerServing),
+        sodiumMg: asNumber(row.sodiumMg),
+        role,
+        count: asNumber(row.count),
         kind,
+      },
+    ];
+  });
+}
+
+export type OccasionRow = {
+  key: string;
+  offsetMin: number | null;
+  carbsG: number | null;
+  proteinG: number | null;
+  form: string | null;
+};
+
+export function occasionsOf(value: unknown): OccasionRow[] {
+  const record = asRecord(value);
+  return asArray(record?.occasions).flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const key = asString(row.key);
+    if (!key) return [];
+    return [
+      {
+        key,
+        offsetMin: asNumber(row.offsetMin),
+        carbsG: asNumber(row.carbsG),
+        proteinG: asNumber(row.proteinG),
+        form: asString(row.form),
       },
     ];
   });

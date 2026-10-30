@@ -3,6 +3,7 @@ import {
   addFueling,
   addLoadingDay,
   addRecovery,
+  raceStrategyCarry,
   symptomLog,
   type SeedData,
 } from "./bag.js";
@@ -48,6 +49,8 @@ function seedAna(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: "GUT_TRAINING",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "20:00",
     briefingDayBefore: true,
   });
@@ -200,13 +203,12 @@ function seedAna(bag: SeedData): void {
       chosen: false,
       refillPoints: { km: plan[1] },
       description: plan[0],
-      carryList: {
-        note: "Hand-made option. None is chosen. Needs for a 5 h race at the current step exceed the three containers.",
-        items: [
-          { productId: "prd_ana_iso", name: "Demo Isotonic Mix" },
-          { productId: "prd_ana_gel", name: "Demo Gel" },
-        ],
-      },
+      carryList: raceStrategyCarry(bag, userId, {
+        durationMin: 300,
+        sport: "CYCLING",
+        sweatLPerH: oldSweat,
+        aidStationCount: (plan[1] as number[]).length,
+      }),
     });
   }
   const loadingGuidance = [
@@ -285,7 +287,7 @@ function seedAna(bag: SeedData): void {
       plannedStart: start ? clock.at(offset, 8, 0) : null,
       plannedDate: clock.day(offset),
       durationMin: duration,
-      structure: type === "BASE" && duration >= 150 ? blocks(duration) : null,
+      structure: type === "BASE" && duration >= 150 ? longRideBlock(duration) : null,
       status,
       stageId: null,
       sourceUpdatedAt: clock.at(offset, 6, 0),
@@ -619,6 +621,8 @@ function seedBruno(bag: SeedData): void {
     theme: "DARK",
     timezone: DEMO_TIMEZONE,
     mode: "GUT_TRAINING",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "19:30",
     briefingDayBefore: true,
   });
@@ -725,7 +729,7 @@ function seedBruno(bag: SeedData): void {
       plannedStart: start,
       plannedDate: clock.day(stage.offset),
       durationMin: stage.duration,
-      structure: blocks(stage.duration),
+      structure: stageBlock(stage.duration),
       status: stage.done ? "COMPLETED" : "PLANNED",
       stageId: id,
       sourceUpdatedAt: null,
@@ -787,7 +791,12 @@ function seedBruno(bag: SeedData): void {
     refillPoints: { km: [12] },
     description:
       "One plan only, so the screen has no carousel. Refill the flask at the mid-stage aid station.",
-    carryList: { items: [{ productId: "prd_bruno_gel", name: "Demo Gel", servings: 4 }] },
+    carryList: raceStrategyCarry(bag, userId, {
+      aidStationCount: 1,
+      durationMin: 120 + 300 + 180 + 120,
+      sport: "TRAIL_RUNNING",
+      sweatLPerH: sweat,
+    }),
   });
 
   const run = (
@@ -937,6 +946,8 @@ function seedCarla(bag: SeedData): void {
     theme: "LIGHT",
     timezone: DEMO_TIMEZONE,
     mode: "FUEL_MY_WORKOUTS",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "20:30",
     briefingDayBefore: true,
   });
@@ -1106,7 +1117,7 @@ function seedCarla(bag: SeedData): void {
       plannedStart: stage.start,
       plannedDate: stage.date,
       durationMin: stage.duration,
-      structure: blocks(stage.duration),
+      structure: stageBlock(stage.duration),
       status: stage.done ? "COMPLETED" : "PLANNED",
       stageId: id,
       sourceUpdatedAt: null,
@@ -1275,6 +1286,8 @@ function seedEli(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: "FUEL_MY_WORKOUTS",
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: "19:00",
     briefingDayBefore: false,
   });
@@ -1576,6 +1589,8 @@ function seedDani(bag: SeedData): void {
     theme: "SYSTEM",
     timezone: DEMO_TIMEZONE,
     mode: null,
+    carbSplit: "BOTTLES_THEN_GELS",
+    fluidPlan: "MORE_BOTTLES",
     briefingTimeLocal: null,
     briefingDayBefore: true,
   });
@@ -1674,14 +1689,14 @@ function fuel(
   };
 }
 
-function blocks(durationMin: number) {
-  const warm = Math.min(20, Math.round(durationMin * 0.15));
-  const cool = Math.min(15, Math.round(durationMin * 0.1));
-  return [
-    { name: "Warm-up", durationMin: warm, zone: "Z2" },
-    { name: "Main set", durationMin: Math.max(1, durationMin - warm - cool), zone: "Z2" },
-    { name: "Cool-down", durationMin: cool, zone: "Z1" },
-  ];
+/** A long ride is one steady block, not a warm-up / main set / cool-down split. */
+function longRideBlock(durationMin: number) {
+  return [{ name: "Long ride", durationMin, zone: "Z2" }];
+}
+
+/** A race stage is one effort. A warm-up split is not a stage. */
+function stageBlock(durationMin: number) {
+  return [{ name: "Stage", durationMin, zone: null }];
 }
 
 function connection(
@@ -1738,6 +1753,7 @@ function product(
     brand: "CarbAdapt Demo",
     servingG,
     scoopG,
+    preparesMl: type === "DRINK_MIX" ? 500 : null,
     carbsG,
     sodiumMg,
     caffeineMg,

@@ -33,9 +33,11 @@ src/modules/products/
 
 Mock services read MySQL through Prisma for the signed-in athlete. Response bodies are checked with the Zod schemas in `packages/contracts` before they are sent. Failures throw `HttpError` with an `HttpErrorCode`. Staging and production call `unimplemented()`, which throws `HttpErrorCode.NotImplemented`, so the process does not finish booting in those environments.
 
-`GET /health` returns `{ "status": "ok" }`. It does not check MySQL. `auth` (magic link) and `notifications` still have no routes.
+`GET /health` returns `{ "status": "ok" }`. It does not check MySQL.
 
-Signed-in routes need the `carbadapt_session` cookie or `Authorization: Bearer <token>`. Both come from `POST /dev/login-as`. `GET /foods` is the shared USDA list and does not need a session.
+Signed-in routes need the `carbadapt_session` cookie or `Authorization: Bearer <token>`. Mock still accepts `POST /dev/login-as`. Magic link is `POST /auth/magic-link` and `POST /auth/magic-link/verify`. The mock email provider prints the link and `GET /dev/magic-links` lists it. The link does not expire until a lifetime is configured. `GET /foods` is the shared USDA list and does not need a session. OAuth start and callback routes accept the mock code only.
+
+Writes for gear, products, races, gut training, sweat tests, to-dos, achievements, connections, onboarding, and webhooks are on `src/modules/records/records.router.ts`. `POST /dev/jobs/tick` runs due jobs. Staging and production still throw `HttpErrorCode.NotImplemented` while the domain factories are built.
 
 ## Endpoints
 

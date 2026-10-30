@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { AppState, DevBar } from "@/components/app-state";
+import { AppState } from "@/components/app-state";
 import { IconSprite } from "@/components/icons";
 import "./globals.css";
 
@@ -39,7 +39,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <IconSprite />
         <AppState>
           <div className="stage">
-            <DevBar />
             <div className="column">{children}</div>
           </div>
         </AppState>

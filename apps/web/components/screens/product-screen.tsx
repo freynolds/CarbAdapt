@@ -1,14 +1,17 @@
 "use client";
 
 import type { Product, Workout } from "@carbadapt/contracts";
+import { HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { ScanFrame } from "@/components/illustrations";
 import { ErrorText, LoadingText, NeedSignIn, Preview, Screen } from "@/components/ui";
 import { addDays, formatNumber, todayKey } from "@/lib/format";
 import { carryItems } from "@/lib/json";
-import { parseProduct, parseProducts, parseWorkouts } from "@/lib/parse";
+import { parseDeleted, parseProduct, parseProducts, parseWorkouts } from "@/lib/parse";
 
 const TYPES = ["DRINK_MIX", "GEL", "SOLID"] as const;
 
@@ -94,7 +97,9 @@ export function ProductDetailScreen({ id }: { id: string }) {
     parseWorkouts,
   );
   const library = useGet(token ? "/products" : null, parseProducts);
+  const router = useRouter();
   const [favorite, setFavorite] = useState<boolean | null>(null);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   const [warn, setWarn] = useState(false);
   const [replacement, setReplacement] = useState<string | null>(null);
   const affected = useMemo(() => {
@@ -126,7 +131,34 @@ export function ProductDetailScreen({ id }: { id: string }) {
       title={row.name}
       back="/profile/products"
       action={
-        <button type="button" className="plus" onClick={() => setFavorite(!starred)}>
+        <button
+          type="button"
+          className="plus"
+          onClick={() => {
+            const next = !starred;
+            setFavorite(next);
+            void apiSend(`/products/${id}`, {
+              method: "PATCH",
+              token,
+              body: {
+                type: row.type,
+                name: row.name,
+                brand: row.brand,
+                servingG: row.servingG,
+                scoopG: row.scoopG,
+                carbsG: row.carbsG,
+                sodiumMg: row.sodiumMg,
+                caffeineMg: row.caffeineMg,
+                favorite: next,
+                label: row.label,
+              },
+              parse: parseProduct,
+            }).catch((caught: unknown) => {
+              setFavorite(!next);
+              setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+            });
+          }}
+        >
           {starred ? "★" : "☆"}
         </button>
       }
@@ -180,7 +212,24 @@ export function ProductDetailScreen({ id }: { id: string }) {
             <p>{t("prod.notUsed")}</p>
           )}
           <Preview />
-          <button type="button" className="bt" disabled={affected.length > 0 && !replacement}>
+          {error ? <ErrorText code={error} /> : null}
+          <button
+            type="button"
+            className="bt"
+            disabled={affected.length > 0 && !replacement}
+            onClick={() => {
+              void apiSend(`/products/${id}`, {
+                method: "DELETE",
+                token,
+                body: replacement ? { replacementId: replacement } : {},
+                parse: parseDeleted,
+              })
+                .then(() => router.push("/profile/products"))
+                .catch((caught: unknown) => {
+                  setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+                });
+            }}
+          >
             {t(affected.length > 0 ? "prod.replace" : "common.delete")}
           </button>
           <button type="button" className="gh" onClick={() => setWarn(false)}>
@@ -202,7 +251,9 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function ProductNewScreen() {
-  const { t } = useApp();
+  const { token, t } = useApp();
+  const router = useRouter();
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   const [phase, setPhase] = useState<"scan" | "confirm" | "manual">("scan");
   const [name, setName] = useState("");
   const [type, setType] = useState<(typeof TYPES)[number]>("GEL");
@@ -210,6 +261,34 @@ export function ProductNewScreen() {
   const [sodium, setSodium] = useState("40");
   const [caffeine, setCaffeine] = useState("0");
   const [serving, setServing] = useState("40");
+
+  async function saveProduct() {
+    if (!token || !name.trim()) {
+      setError(HttpErrorCode.InvalidRequest);
+      return;
+    }
+    const carbsG = Number(carbs);
+    const sodiumMg = sodium === "" ? null : Number(sodium);
+    const caffeineMg = caffeine === "" ? null : Number(caffeine);
+    const servingG = serving === "" ? null : Number(serving);
+    if (!Number.isFinite(carbsG) || carbsG < 0) {
+      setError(HttpErrorCode.InvalidRequest);
+      return;
+    }
+    setError(null);
+    try {
+      await apiSend("/products", {
+        method: "POST",
+        token,
+        body: { type, name: name.trim(), carbsG, sodiumMg, caffeineMg, servingG },
+        parse: parseProduct,
+      });
+      router.push("/profile/products");
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    }
+  }
+
   return (
     <Screen
       kicker={phase === "manual" ? t("prod.new") : t("prod.scan")}
@@ -248,7 +327,8 @@ export function ProductNewScreen() {
             <Row label={t("prod.sodium")} value={`${sodium} mg`} />
             <Row label={t("prod.caffeine")} value={`${caffeine} mg`} />
           </div>
-          <button type="button" className="bt">
+          {error ? <ErrorText code={error} /> : null}
+          <button type="button" className="bt" onClick={() => void saveProduct()}>
             {t("common.confirm")}
           </button>
           <button type="button" className="gh" onClick={() => setPhase("manual")}>
@@ -291,7 +371,8 @@ export function ProductNewScreen() {
             <span>{t("prod.serving")}</span>
             <input value={serving} onChange={(event) => setServing(event.target.value)} />
           </label>
-          <button type="button" className="bt">
+          {error ? <ErrorText code={error} /> : null}
+          <button type="button" className="bt" onClick={() => void saveProduct()}>
             {t("common.save")}
           </button>
         </>

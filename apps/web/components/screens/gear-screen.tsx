@@ -1,13 +1,16 @@
 "use client";
 
+import { HttpErrorCode } from "@carbadapt/contracts";
 import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useApp, useGet } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { Icon, carryIconName, paintIcon } from "@/components/icons";
 import { PlayMark, ScaleScene } from "@/components/illustrations";
 import { ErrorText, LoadingText, NeedSignIn, Preview, Screen, StepSegments } from "@/components/ui";
-import { parseContainer, parseContainers, parseProducts } from "@/lib/parse";
+import { parseContainer, parseContainers, parseDeleted, parseProducts } from "@/lib/parse";
 
 const COLORS: { id: string; label: MessageId; hex: string }[] = [
   { id: "red", label: "gear.red", hex: "#E5484D" },
@@ -93,7 +96,10 @@ export function GearListScreen() {
 
 export function GearFormScreen({ id }: { id?: string }) {
   const { token, t } = useApp();
+  const router = useRouter();
   const existing = useGet(token && id ? `/containers/${id}` : null, parseContainer);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<HttpErrorCode | null>(null);
   const [type, setType] = useState<"BOTTLE" | "SOFT_FLASK" | "BLADDER">("BOTTLE");
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("750");
@@ -112,6 +118,50 @@ export function GearFormScreen({ id }: { id?: string }) {
   const activeHex = color
     ? COLORS.find((swatch) => swatch.id === color)?.hex
     : (row?.colorHex ?? COLORS[0]?.hex);
+
+  async function save() {
+    if (!token || !shownName) return;
+    const capacityMl = Number(shownCapacity);
+    if (!Number.isFinite(capacityMl) || capacityMl <= 0) {
+      setError(HttpErrorCode.InvalidRequest);
+      return;
+    }
+    const body = {
+      type: shownType,
+      name: shownName,
+      colorHex: activeHex ?? null,
+      capacityMl: Math.round(capacityMl),
+      usualContent: shownType === "SOFT_FLASK" ? "GEL_CONCENTRATE" : shownContent,
+    };
+    setBusy(true);
+    setError(null);
+    try {
+      await apiSend(id ? `/containers/${id}` : "/containers", {
+        method: id ? "PATCH" : "POST",
+        token,
+        body,
+        parse: parseContainer,
+      });
+      router.push("/profile/gear");
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!token || !id) return;
+    setBusy(true);
+    try {
+      await apiSend(`/containers/${id}`, { method: "DELETE", token, parse: parseDeleted });
+      router.push("/profile/gear");
+    } catch (caught: unknown) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+      setBusy(false);
+    }
+  }
+
   return (
     <Screen
       kicker={id ? t("gear.edit") : t("gear.add")}
@@ -211,12 +261,13 @@ export function GearFormScreen({ id }: { id?: string }) {
                 t("gear.calibrate")}
             </span>
           </Link>
-          <button type="button" className="gh">
+          <button type="button" className="gh" disabled={busy} onClick={() => void remove()}>
             {t("gear.delete")}
           </button>
         </>
       ) : null}
-      <button type="button" className="bt">
+      {error ? <ErrorText code={error} /> : null}
+      <button type="button" className="bt" disabled={busy} onClick={() => void save()}>
         {t("common.save")}
       </button>
     </Screen>
@@ -400,7 +451,26 @@ export function CalibrateScreen({ id }: { id: string }) {
       <button
         type="button"
         className="bt"
-        onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}
+        onClick={() => {
+          if (current === "w3") {
+            const weightsG = weights.map((value) => Number(value));
+            if (weightsG.some((value) => !Number.isFinite(value))) return;
+            void apiSend(`/containers/${id}/calibrations`, {
+              method: "POST",
+              token,
+              body: { weightsG },
+              parse: parseContainer,
+            })
+              .then(() => setStep((value) => Math.min(steps.length - 1, value + 1)))
+              .catch(() => undefined);
+            return;
+          }
+          if (current === "done") {
+            window.location.assign(`/profile/gear/${id}`);
+            return;
+          }
+          setStep((value) => Math.min(steps.length - 1, value + 1));
+        }}
       >
         {current === "w3"
           ? t("calb.finish")

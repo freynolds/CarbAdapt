@@ -1,4 +1,5 @@
-import type { Workout } from "@carbadapt/contracts";
+import { SWEAT_PROMPT_DAYS, type Workout } from "@carbadapt/contracts";
+import { shiftDay } from "@carbadapt/engine";
 import { calendarDate } from "../../../../http/calendar.js";
 import type { HomeDeps } from "../../home.factory.js";
 import type { HomeService } from "../../home.service.js";
@@ -19,6 +20,17 @@ function heroWorkout(mode: "FUEL_MY_WORKOUTS" | "GUT_TRAINING" | null, workouts:
   return null;
 }
 
+/** Due now, overdue, or scheduled within the prompt window. Farther dates stay off the home card. */
+function sweatIsPrompted(
+  row: { status: string; scheduledFor: string | null },
+  today: string,
+): boolean {
+  if (row.status === "IN_PROGRESS" || row.status === "AWAITING_DATA") return true;
+  if (row.status !== "SCHEDULED" && row.status !== "RESCHEDULED") return false;
+  if (!row.scheduledFor) return false;
+  return row.scheduledFor <= shiftDay(today, SWEAT_PROMPT_DAYS);
+}
+
 export function createMockHomeService(deps: HomeDeps): HomeService {
   return {
     async getHome(userId) {
@@ -32,25 +44,26 @@ export function createMockHomeService(deps: HomeDeps): HomeService {
         deps.gear.listContainers(userId),
         deps.races.listRaces(userId),
       ]);
-      const upcoming = sweat.sweatTests.filter(
-        (row) =>
-          (row.status === "SCHEDULED" || row.status === "RESCHEDULED") &&
-          row.scheduledFor !== null &&
-          row.scheduledFor >= today,
-      );
+      const prompted = sweat.sweatTests.filter((row) => sweatIsPrompted(row, today));
       const sweatTest =
-        upcoming[0] ??
-        sweat.sweatTests.find((row) => row.status === "IN_PROGRESS") ??
-        sweat.sweatTests.find((row) => row.status === "AWAITING_DATA") ??
+        prompted.find((row) => row.status === "IN_PROGRESS" || row.status === "AWAITING_DATA") ??
+        prompted.find((row) => row.status === "SCHEDULED" || row.status === "RESCHEDULED") ??
         null;
+      const sweatById = new Map(sweat.sweatTests.map((row) => [row.id, row]));
+      const visibleTodos = todos.todos.filter((todo) => {
+        if (todo.type !== "SWEAT_TEST" || !todo.refId) return true;
+        const test = sweatById.get(todo.refId);
+        if (!test) return true;
+        return sweatIsPrompted(test, today);
+      });
       return {
         user: me.user,
         physical: me.physical,
         hero: heroWorkout(me.user.mode, workouts.workouts),
         sweatTest,
-        todos: todos.todos,
+        todos: visibleTodos,
         counts: {
-          openTodos: todos.todos.length,
+          openTodos: visibleTodos.length,
           products: products.products.length,
           containers: containers.containers.length,
           upcomingRaces: races.races.filter((race) => race.date !== null && race.date >= today)

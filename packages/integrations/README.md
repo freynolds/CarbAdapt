@@ -12,6 +12,8 @@ Adapters for TrainingPeaks, Strava, and Garmin: list planned workouts, fetch a c
 - Fueling rules, dedupe policy, or notification copy. Matching an activity to a workout is product logic in the API or worker; this package only speaks the provider's protocol.
 - Tokens stored in source. Provider secrets come from the environment.
 
-## Milestone
+## Status
 
-M4. The mock phase has no OAuth and no provider HTTP. Do not add a client SDK before then.
+`createAdapters("mock")` works with no keys. `createAdapters("live")` reads the environment and throws `IntegrationError` with `not_configured` when a required key is missing. It does not call the network until the keys are present. Garmin throws `provider_disabled` unless `GARMIN_ENABLED=true`.
+
+Key names and where to create each app are in the root `.env.example`.

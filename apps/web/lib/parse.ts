@@ -1,6 +1,11 @@
 import {
   achievementListSchema,
   breakfastResponseSchema,
+  deletedResponseSchema,
+  gutPreviewSchema,
+  magicLinkSentSchema,
+  sessionResponseSchema,
+  startingPointSchema,
   conflictListSchema,
   connectionListSchema,
   containerListSchema,
@@ -8,14 +13,17 @@ import {
   devAthleteListSchema,
   devLoginResponseSchema,
   feedbackResponseSchema,
+  fuelingPlanResponseSchema,
   gutPlanResponseSchema,
   homeResponseSchema,
   loadingDayResponseSchema,
   meResponseSchema,
+  physicalResponseSchema,
   productListSchema,
   productResponseSchema,
   progressResponseSchema,
   raceListSchema,
+  racePlanResponseSchema,
   raceResponseSchema,
   stageRecoveryResponseSchema,
   sweatTestListSchema,
@@ -27,6 +35,7 @@ import {
 export const parseAthletes = (value: unknown) => devAthleteListSchema.parse(value);
 export const parseLogin = (value: unknown) => devLoginResponseSchema.parse(value);
 export const parseMe = (value: unknown) => meResponseSchema.parse(value);
+export const parsePhysical = (value: unknown) => physicalResponseSchema.parse(value);
 export const parseHome = (value: unknown) => homeResponseSchema.parse(value);
 export const parseWorkouts = (value: unknown) => workoutListSchema.parse(value);
 export const parseWorkout = (value: unknown) => workoutResponseSchema.parse(value);
@@ -42,8 +51,15 @@ export const parseSweatTests = (value: unknown) => sweatTestListSchema.parse(val
 export const parseSweatTest = (value: unknown) => sweatTestResponseSchema.parse(value);
 export const parseRaces = (value: unknown) => raceListSchema.parse(value);
 export const parseRace = (value: unknown) => raceResponseSchema.parse(value);
+export const parseRacePlan = (value: unknown) => racePlanResponseSchema.parse(value);
 export const parseRecovery = (value: unknown) => stageRecoveryResponseSchema.parse(value);
 export const parseLoading = (value: unknown) => loadingDayResponseSchema.parse(value);
 export const parseBreakfast = (value: unknown) => breakfastResponseSchema.parse(value);
 export const parseFeedback = (value: unknown) => feedbackResponseSchema.parse(value);
+export const parseFueling = (value: unknown) => fuelingPlanResponseSchema.parse(value);
 export const parseAchievements = (value: unknown) => achievementListSchema.parse(value);
+export const parseSession = (value: unknown) => sessionResponseSchema.parse(value);
+export const parseMagicSent = (value: unknown) => magicLinkSentSchema.parse(value);
+export const parseDeleted = (value: unknown) => deletedResponseSchema.parse(value);
+export const parseStarting = (value: unknown) => startingPointSchema.parse(value);
+export const parseGutPreview = (value: unknown) => gutPreviewSchema.parse(value);

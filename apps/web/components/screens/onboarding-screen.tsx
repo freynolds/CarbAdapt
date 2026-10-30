@@ -401,7 +401,7 @@ function CarbsStep() {
           <p className="m">
             {t("on.roughMath", { gels: answers.gels || "0", bottles: answers.bottles || "0" })}
           </p>
-          {rough != null ? <p className="big">{formatNumber(rough, locale)}</p> : null}
+          <p className="big">{rough != null ? formatNumber(rough, locale) : t("common.notSet")}</p>
           <p className="note">
             <b>{t("on.why")}</b>
             {t("on.why4b")}
@@ -455,6 +455,53 @@ function FuelStep() {
         <b>{t("on.why")}</b>
         {t("on.why5")}
       </p>
+      <p className="ey">{t("pref.split")}</p>
+      <div className="wrap">
+        {(
+          [
+            ["BOTTLES_THEN_GELS", "pref.bottles"],
+            ["MOSTLY_WATER", "pref.water"],
+            ["MORE_MIX", "pref.mix"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={answers.carbSplit === id ? "pill sel" : "pill"}
+            onClick={() => patch({ carbSplit: id })}
+          >
+            {t(label)}
+          </button>
+        ))}
+      </div>
+      <p className="note">
+        <b>{t("on.why")}</b>
+        {t(
+          answers.carbSplit === "MOSTLY_WATER"
+            ? "pref.whyWater"
+            : answers.carbSplit === "MORE_MIX"
+              ? "pref.whyMix"
+              : "pref.whyBottles",
+        )}
+      </p>
+      <p className="ey">{t("pref.fluid")}</p>
+      <div className="wrap">
+        {(
+          [
+            ["MORE_BOTTLES", "pref.moreBottles"],
+            ["REFILL", "pref.refill"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={answers.fluidPlan === id ? "pill sel" : "pill"}
+            onClick={() => patch({ fluidPlan: id })}
+          >
+            {t(label)}
+          </button>
+        ))}
+      </div>
       <Link href="/onboarding/sweat" className="bt">
         {t("common.continue")}
       </Link>

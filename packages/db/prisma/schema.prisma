@@ -20,6 +20,17 @@ enum Mode {
   GUT_TRAINING
 }
 
+enum CarbSplit {
+  BOTTLES_THEN_GELS
+  MOSTLY_WATER
+  MORE_MIX
+}
+
+enum FluidPlan {
+  MORE_BOTTLES
+  REFILL
+}
+
 enum Locale {
   EN_US
   ES
@@ -126,6 +137,7 @@ enum SweatTestStatus {
   AWAITING_DATA
   COMPLETED
   RESCHEDULED // #134 / #154
+  NOT_COMPLETED
 }
 
 enum PlanStatus {
@@ -255,6 +267,10 @@ model User {
   timezone          String // IANA, e.g. America/Argentina/Buenos_Aires
   /// Null until the athlete picks a mode (Dani, §5). The plan defaulted this; seed needs "not chosen".
   mode              Mode?
+  /// Bottles take carbohydrate first. The athlete can drink mostly water, or mix the water bottles too.
+  carbSplit         CarbSplit  @default(BOTTLES_THEN_GELS)
+  /// Fluid that does not fit is more bottles, or a plain-water refill.
+  fluidPlan         FluidPlan  @default(MORE_BOTTLES)
   briefingTimeLocal String? // "HH:mm" (#67) – inferred format
   briefingDayBefore Boolean    @default(true) // evening before vs same day (#67)
   createdAt         DateTime   @default(now())
@@ -277,6 +293,7 @@ model User {
   notifications Notification[]
   subscription  Subscription?
   onboarding    OnboardingAnswers?
+  racePlans     RacePlan[]
 }
 
 model AuthIdentity {
@@ -419,6 +436,8 @@ model Product {
   brand      String?
   servingG   Decimal?      @db.Decimal(6, 2)
   scoopG     Decimal?      @db.Decimal(6, 2) // scoop size from label (#37)
+  /// Milliliters one scoop prepares. Null uses the engine default of 500 ml.
+  preparesMl Int?
   carbsG     Decimal       @db.Decimal(6, 2) // per serving
   sodiumMg   Int?
   caffeineMg Int?
@@ -657,8 +676,22 @@ model Stage {
   aidStations          AidStation[]
   recovery             StageRecoveryPlan?
   workout              Workout?
+  racePlan             RacePlan?
 
   @@unique([raceId, index])
+}
+
+/// Extra bottles and water stops the athlete confirmed for one stage.
+model RacePlan {
+  id             String   @id @default(cuid())
+  userId         String
+  stageId        String   @unique
+  extraBottlesMl Json
+  refillKm       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage          Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
 }
 
 model AidStation {
@@ -760,4 +793,28 @@ model Notification {
   user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, scheduledAt])
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// MySQL-polled queue. Redis is not required for local runs.
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  runAt       DateTime
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lastError   String?   @db.Text
+  dedupeKey   String?   @unique
+  lockedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, runAt])
 }

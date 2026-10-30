@@ -13,6 +13,8 @@ export const jsonSchema = z.unknown();
 export const localeSchema = z.enum(["EN_US", "ES", "PT"]);
 export const themeSchema = z.enum(["SYSTEM", "LIGHT", "DARK"]);
 export const modeSchema = z.enum(["FUEL_MY_WORKOUTS", "GUT_TRAINING"]);
+export const carbSplitSchema = z.enum(["BOTTLES_THEN_GELS", "MOSTLY_WATER", "MORE_MIX"]);
+export const fluidPlanSchema = z.enum(["MORE_BOTTLES", "REFILL"]);
 export const sportSchema = z.enum(["CYCLING", "RUNNING", "TRAIL_RUNNING", "OTHER"]);
 export const workoutTypeSchema = z.enum(["BASE", "THRESHOLD", "VO2MAX", "ANAEROBIC", "RECOVERY"]);
 export const workoutKindSchema = z.enum(["STANDARD", "SWEAT_TEST"]);
@@ -26,12 +28,16 @@ export const containerContentSchema = z.enum(["WATER", "ISOTONIC", "GEL_CONCENTR
 export const productTypeSchema = z.enum(["DRINK_MIX", "GEL", "SOLID"]);
 export const productSourceSchema = z.enum(["SCAN", "MANUAL"]);
 export const fodmapSchema = z.enum(["LOW", "HIGH"]);
+/** A planned sweat test is called due only this many days ahead. */
+export const SWEAT_PROMPT_DAYS = 7;
+
 export const sweatTestStatusSchema = z.enum([
   "SCHEDULED",
   "IN_PROGRESS",
   "AWAITING_DATA",
   "COMPLETED",
   "RESCHEDULED",
+  "NOT_COMPLETED",
 ]);
 export const planStatusSchema = z.enum(["ACTIVE", "COMPLETED", "ARCHIVED"]);
 export const ladderStepStatusSchema = z.enum(["DONE", "CURRENT", "UPCOMING"]);

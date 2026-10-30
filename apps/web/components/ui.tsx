@@ -4,15 +4,20 @@ import { HTTP_ERROR_MESSAGE, HttpErrorCode } from "@carbadapt/contracts";
 import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useApp } from "@/components/app-state";
+import { ApiError, apiSend } from "@/lib/api";
 import { Icon, carryIconName, paintIcon } from "@/components/icons";
+import { formatNumber } from "@/lib/format";
+import { asRecord, asString, carryItems } from "@/lib/json";
+import { parseMe } from "@/lib/parse";
 
 export function Screen({
   title,
   kicker,
   tabs = false,
   back,
+  onBack,
   action,
   lead,
   children,
@@ -22,6 +27,8 @@ export function Screen({
   kicker?: string;
   tabs?: boolean;
   back?: string;
+  /** Steps back inside a screen. Used instead of the `back` link. */
+  onBack?: () => void;
   action?: ReactNode;
   lead?: ReactNode;
   children?: ReactNode;
@@ -31,9 +38,17 @@ export function Screen({
   return (
     <div className={className ? `screen ${className}` : "screen"}>
       <div className="screen-body">
-        {back || action ? (
+        {back || onBack || action ? (
           <div className="nav">
-            {back ? <Link href={back}>‹ {t("common.back")}</Link> : <span />}
+            {onBack ? (
+              <button type="button" onClick={onBack}>
+                ‹ {t("common.back")}
+              </button>
+            ) : back ? (
+              <Link href={back}>‹ {t("common.back")}</Link>
+            ) : (
+              <span />
+            )}
             {action}
           </div>
         ) : null}
@@ -82,12 +97,38 @@ export function Preview() {
 }
 
 export function NeedSignIn() {
-  const { token, t } = useApp();
+  const { token, t, athletes, login } = useApp();
   if (token) return null;
+  if (athletes.length === 0) {
+    return (
+      <div className="note">
+        <b>{t("auth.login")}</b>
+        {t("common.signInFirst")}
+        <div>
+          <Link href="/auth/magic">{t("auth.magic")}</Link>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="note">
-      <b>{t("auth.login")}</b>
-      {t("common.signInFirst")}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <p className="ey">{t("auth.pick")}</p>
+      {athletes.map((athlete) => (
+        <button
+          key={athlete.athleteId}
+          type="button"
+          className="choice"
+          onClick={() => void login(athlete.athleteId)}
+        >
+          <span>
+            <b>{athlete.name ?? athlete.athleteId}</b>
+            <span className="mu">
+              {athlete.mode ? t(`mode.${athlete.mode}` as "mode.FUEL_MY_WORKOUTS") : athlete.email}
+            </span>
+          </span>
+        </button>
+      ))}
+      <Link href="/auth/magic">{t("auth.magic")}</Link>
     </div>
   );
 }
@@ -140,6 +181,185 @@ export function BigStats({ items }: { items: { value: string; label: string }[] 
   );
 }
 
+export type CarryExtra = {
+  key: string;
+  name: string;
+  detail: string;
+  fluidMl: number;
+  carbsG: number;
+  sodiumMg: number;
+};
+
+export function CarryList({
+  plan,
+  colors,
+  hideFluidChoice = false,
+  extra = [],
+}: {
+  plan: unknown;
+  colors?: Map<string, string | null>;
+  /** Race detail owns bottles and stops, so the profile fluid toggle stays off this card. */
+  hideFluidChoice?: boolean;
+  extra?: CarryExtra[];
+}) {
+  const { t, locale } = useApp();
+  const items = carryItems(plan).filter(
+    (item) => !hideFluidChoice || (item.role !== "more_bottles" && item.role !== "refill"),
+  );
+  const record = asRecord(plan);
+  const carbStatus = asString(record?.carbStatus);
+  const notSet = t("common.notSet");
+  const carbSum =
+    items.reduce((sum, item) => sum + (item.carbsG ?? 0), 0) + extra.reduce((sum, item) => sum + item.carbsG, 0);
+  const fluidSum =
+    items.reduce((sum, item) => sum + (item.fluidMl ?? 0), 0) + extra.reduce((sum, item) => sum + item.fluidMl, 0);
+  const sodiumSum =
+    items.reduce((sum, item) => sum + (item.sodiumMg ?? 0), 0) + extra.reduce((sum, item) => sum + item.sodiumMg, 0);
+  const carbsKnown = carbStatus === "computed" || items.some((item) => item.carbsG != null) || extra.length > 0;
+  const fluidKnown = items.some((item) => item.fluidMl != null) || extra.some((item) => item.fluidMl > 0);
+  const showNotSplit = carbStatus === "not_set";
+  const carbBasis = asString(record?.carbBasis);
+  const roundedUp = record?.carbsRoundedUp === true;
+  const hasShortfall =
+    !hideFluidChoice && items.some((item) => item.role === "more_bottles" || item.role === "refill");
+  const fluidPlan = items.some((item) => item.role === "refill") ? "REFILL" : "MORE_BOTTLES";
+  return (
+    <>
+      {items.map((item, index) => {
+        const title =
+          item.role === "refill"
+            ? t("carry.refill")
+            : item.role === "more_bottles"
+              ? item.count == null
+                ? t("carry.moreBottlesUnknown")
+                : t("carry.moreBottles", { n: item.count })
+              : item.role === "extra_powder"
+                ? t("carry.extraPowder")
+                : item.role === "unassigned"
+                  ? t("carry.unassigned")
+                  : item.role === "water"
+                    ? t("carry.water")
+                    : (item.productName ?? item.name);
+        const amount =
+          item.servings == null
+            ? notSet
+            : item.unit === "scoop"
+              ? t("carry.scoops", { n: item.servings })
+              : item.unit === "unit"
+                ? t("carry.units", { n: item.servings })
+                : t("carry.servings", { n: item.servings });
+        const volume = item.volumeMl == null ? null : t("carry.volume", { ml: formatNumber(item.volumeMl, locale) });
+        const carbs = item.carbsG == null ? notSet : `${formatNumber(item.carbsG, locale)} g`;
+        const fluid = item.fluidMl == null ? notSet : `${formatNumber(item.fluidMl, locale)} ml`;
+        const sodium = item.sodiumMg == null ? notSet : `${formatNumber(item.sodiumMg, locale)} mg`;
+        const plain =
+          item.role === "refill"
+            ? t("carry.refillFluid", {
+                ml: formatNumber(item.fluidMl ?? 0, locale),
+                carbs: formatNumber(item.carbsG ?? 0, locale),
+              })
+            : item.role === "more_bottles"
+              ? t("carry.moreBottlesFluid", {
+                  ml: formatNumber(item.fluidMl ?? 0, locale),
+                  carbs: formatNumber(item.carbsG ?? 0, locale),
+                })
+              : null;
+        const skipAmount = item.role === "water" || item.role === "unassigned" || item.role === "refill" || item.role === "more_bottles";
+        return (
+          <CarryLine
+            key={`${item.name}-${index}`}
+            name={item.containerName ?? title}
+            kind={item.kind}
+            color={item.containerId ? colors?.get(item.containerId) : null}
+            detail={
+              plain ? (
+                <div>{plain}</div>
+              ) : (
+                <>
+                  <div>
+                    {item.role === "extra_powder" && item.productName ? item.productName : title}
+                    {skipAmount ? "" : ` · ${amount}`}
+                    {volume ? ` · ${volume}` : ""}
+                  </div>
+                  <div>
+                    {carbs} · {fluid} · {sodium}
+                  </div>
+                </>
+              )
+            }
+          />
+        );
+      })}
+      {extra.map((item) => (
+        <CarryLine key={item.key} name={item.name} kind="bottle" detail={<div>{item.detail}</div>} />
+      ))}
+      {hasShortfall ? <FluidPlanSwitch current={fluidPlan} /> : null}
+      <div className="rw" style={{ justifyContent: "space-between" }}>
+        <b>{t("carry.total")}</b>
+        <span className="m">
+          {carbsKnown ? `${formatNumber(carbSum, locale)} g` : notSet}
+          {" · "}
+          {fluidKnown ? `${formatNumber(fluidSum, locale)} ml` : notSet}
+          {" · "}
+          {sodiumSum > 0 ? `${formatNumber(sodiumSum, locale)} mg` : notSet}
+        </span>
+      </div>
+      {showNotSplit ? <p className="mu">{t("carry.notSplit")}</p> : null}
+      {carbBasis === "band_low" ? <p className="mu">{t("carry.bandLow")}</p> : null}
+      {carbBasis === "band_max" ? <p className="mu">{t("carry.bandMax")}</p> : null}
+      {roundedUp ? <p className="mu">{t("carry.rounded")}</p> : null}
+    </>
+  );
+}
+
+function FluidPlanSwitch({ current }: { current: "MORE_BOTTLES" | "REFILL" }) {
+  const { token, t, refreshData } = useApp();
+  const [error, setError] = useState<HttpErrorCode | null>(null);
+  const [pending, setPending] = useState(false);
+  async function choose(fluidPlan: "MORE_BOTTLES" | "REFILL") {
+    if (!token || pending || fluidPlan === current) return;
+    setPending(true);
+    setError(null);
+    try {
+      await apiSend("/me", {
+        method: "PATCH",
+        token,
+        body: { fluidPlan },
+        parse: parseMe,
+      });
+      refreshData();
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.code : HttpErrorCode.InternalError);
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div>
+      <p className="ey">{t("pref.fluid")}</p>
+      <div className="wrap">
+        {(
+          [
+            ["MORE_BOTTLES", "pref.moreBottles"],
+            ["REFILL", "pref.refill"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={current === id ? "pill sel" : "pill"}
+            disabled={pending}
+            onClick={() => void choose(id)}
+          >
+            {t(label)}
+          </button>
+        ))}
+      </div>
+      {error ? <ErrorText code={error} /> : null}
+    </div>
+  );
+}
+
 export function CarryLine({
   name,
   detail,
@@ -147,7 +367,7 @@ export function CarryLine({
   color,
 }: {
   name: string;
-  detail?: string;
+  detail?: ReactNode;
   kind: string;
   color?: string | null;
 }) {

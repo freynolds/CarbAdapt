@@ -89,3 +89,72 @@ test("GET /home composes the hero, sweat test, to-dos, and counts", async () => 
     assert.deepEqual(body.counts, { openTodos: 1, products: 1, containers: 1, upcomingRaces: 1 });
   });
 });
+
+test("a sweat test more than a week away is not called due", async () => {
+  await withAthlete(async ({ baseUrl, db, userId, cookie }) => {
+    const today = calendarDate(new Date(), "UTC");
+    const soon = shiftDay(today, 7);
+    const later = shiftDay(today, 40);
+    const soonId = testId("swt");
+    const laterId = testId("swt");
+    await db.sweatTest.create({
+      data: {
+        id: laterId,
+        userId,
+        status: "RESCHEDULED",
+        scheduledFor: new Date(`${later}T00:00:00.000Z`),
+      },
+    });
+    await db.sweatTest.create({
+      data: {
+        id: soonId,
+        userId,
+        status: "SCHEDULED",
+        scheduledFor: new Date(`${soon}T00:00:00.000Z`),
+      },
+    });
+    await db.todoItem.create({
+      data: {
+        id: testId("tdo"),
+        userId,
+        type: "SWEAT_TEST",
+        tier: "CALIBRATION",
+        status: "OPEN",
+        refType: "SweatTest",
+        refId: laterId,
+      },
+    });
+    await db.todoItem.create({
+      data: {
+        id: testId("tdo"),
+        userId,
+        type: "SWEAT_TEST",
+        tier: "CALIBRATION",
+        status: "OPEN",
+        refType: "SweatTest",
+        refId: soonId,
+      },
+    });
+    const response = await fetch(`${baseUrl}/home`, { headers: { cookie } });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      sweatTest: { id: string } | null;
+      todos: { refId: string | null }[];
+    };
+    assert.equal(body.sweatTest?.id, soonId);
+    assert.equal(
+      body.todos.some((todo) => todo.refId === laterId),
+      false,
+    );
+    assert.equal(
+      body.todos.some((todo) => todo.refId === soonId),
+      true,
+    );
+  });
+});
+
+function shiftDay(day: string, days: number): string {
+  const date = new Date(`${day}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}

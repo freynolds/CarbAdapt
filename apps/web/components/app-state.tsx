@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  localeFromUser,
-  TRANSLATION_STATUS,
-  translate,
-  type Locale,
-  type MessageId,
-} from "@carbadapt/i18n";
+import { localeFromUser, translate, type Locale, type MessageId } from "@carbadapt/i18n";
 import { HttpErrorCode, type MeResponse } from "@carbadapt/contracts";
 import {
   createContext,
@@ -14,11 +8,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { z } from "zod";
 import { ApiError, apiSend } from "@/lib/api";
-import { parseAthletes, parseLogin, parseMe } from "@/lib/parse";
+import { parseAthletes, parseDeleted, parseLogin, parseMe } from "@/lib/parse";
+
+const claimedSchema = z.object({ claimed: z.literal(true) }).strict();
+const ANON_KEY = "carbadapt.anon";
 
 const TOKEN_KEY = "carbadapt.token";
 const ATHLETE_KEY = "carbadapt.athlete";
@@ -51,7 +50,10 @@ type AppContextValue = {
   setLocale: (locale: Locale) => void;
   setTheme: (theme: ThemeChoice) => void;
   login: (athleteId: string) => Promise<void>;
+  acceptSession: (token: string, userId: string) => Promise<void>;
   logout: () => void;
+  refreshData: () => void;
+  dataVersion: number;
   t: (id: MessageId, vars?: Record<string, string | number>) => string;
 };
 
@@ -83,6 +85,7 @@ export function AppState({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [locale, setLocaleState] = useState<Locale>("en");
   const [theme, setThemeState] = useState<ThemeChoice>("system");
+  const [dataVersion, setDataVersion] = useState(0);
 
   useEffect(() => {
     const storedTheme = readTheme();
@@ -146,20 +149,50 @@ export function AppState({ children }: { children: ReactNode }) {
     applyTheme(next);
   }, []);
 
-  const login = useCallback(async (nextAthleteId: string) => {
-    const body = await apiSend("/dev/login-as", {
-      method: "POST",
-      body: { athleteId: nextAthleteId },
-      parse: parseLogin,
-    });
-    window.localStorage.setItem(TOKEN_KEY, body.token);
-    window.localStorage.setItem(ATHLETE_KEY, body.user.id);
-    setToken(body.token);
-    setAthleteId(body.user.id);
-    if (!window.localStorage.getItem(LOCALE_KEY)) setLocaleState(localeFromUser(body.user.locale));
+  const acceptSession = useCallback(async (nextToken: string, nextUserId: string) => {
+    window.localStorage.setItem(TOKEN_KEY, nextToken);
+    window.localStorage.setItem(ATHLETE_KEY, nextUserId);
+    setToken(nextToken);
+    setAthleteId(nextUserId);
+    const draft = window.sessionStorage.getItem(ANON_KEY);
+    if (!draft) return;
+    try {
+      await apiSend("/onboarding/claim", {
+        method: "POST",
+        token: nextToken,
+        body: { anonId: draft },
+        parse: (value) => claimedSchema.parse(value),
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof ApiError) || error.code !== HttpErrorCode.NotFound) return;
+    }
+  }, []);
+
+  const login = useCallback(
+    async (nextAthleteId: string) => {
+      const body = await apiSend("/dev/login-as", {
+        method: "POST",
+        body: { athleteId: nextAthleteId },
+        parse: parseLogin,
+      });
+      if (!window.localStorage.getItem(LOCALE_KEY))
+        setLocaleState(localeFromUser(body.user.locale));
+      await acceptSession(body.token, body.user.id);
+    },
+    [acceptSession],
+  );
+
+  const refreshData = useCallback(() => {
+    setDataVersion((version) => version + 1);
   }, []);
 
   const logout = useCallback(() => {
+    const current = window.localStorage.getItem(TOKEN_KEY);
+    if (current) {
+      void apiSend("/auth/logout", { method: "POST", token: current, parse: parseDeleted }).catch(
+        () => undefined,
+      );
+    }
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(ATHLETE_KEY);
     setToken(null);
@@ -184,10 +217,29 @@ export function AppState({ children }: { children: ReactNode }) {
       setLocale,
       setTheme,
       login,
+      acceptSession,
       logout,
+      refreshData,
+      dataVersion,
       t,
     }),
-    [ready, token, athleteId, athletes, me, locale, theme, setLocale, setTheme, login, logout, t],
+    [
+      ready,
+      token,
+      athleteId,
+      athletes,
+      me,
+      locale,
+      theme,
+      dataVersion,
+      setLocale,
+      setTheme,
+      login,
+      acceptSession,
+      logout,
+      refreshData,
+      t,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -200,10 +252,12 @@ export function useApp(): AppContextValue {
 }
 
 export function useGet<T>(path: string | null, parse: (value: unknown) => T): Load<T> {
-  const { token } = useApp();
+  const { token, dataVersion } = useApp();
   const [state, setState] = useState<Load<T>>({ status: "loading" });
+  const readyFor = useRef<{ path: string | null; token: string | null } | null>(null);
 
   useEffect(() => {
+    const silent = readyFor.current?.path === path && readyFor.current?.token === token;
     if (!path) {
       setState({ status: "idle" });
       return;
@@ -214,62 +268,22 @@ export function useGet<T>(path: string | null, parse: (value: unknown) => T): Lo
       return;
     }
     let cancel = false;
-    setState({ status: "loading" });
+    if (!silent) setState({ status: "loading" });
     apiSend(path, { token, parse })
       .then((data) => {
-        if (!cancel) setState({ status: "ready", data });
+        if (cancel) return;
+        readyFor.current = { path, token };
+        setState({ status: "ready", data });
       })
       .catch((error: unknown) => {
-        if (cancel) return;
+        if (cancel || silent) return;
         const code = error instanceof ApiError ? error.code : HttpErrorCode.InternalError;
         setState({ status: "error", code });
       });
     return () => {
       cancel = true;
     };
-  }, [path, token, parse]);
+  }, [path, token, parse, dataVersion]);
 
   return state;
-}
-
-export function DevBar() {
-  const { athletes, athleteId, locale, theme, setLocale, setTheme, login, t } = useApp();
-  return (
-    <div className="devbar">
-      <label>
-        {t("common.athlete")}
-        <select
-          value={athleteId ?? ""}
-          onChange={(event) => {
-            if (event.target.value) void login(event.target.value);
-          }}
-        >
-          <option value="">{t("common.athlete")}</option>
-          {athletes.map((athlete) => (
-            <option key={athlete.athleteId} value={athlete.athleteId}>
-              {athlete.name ?? athlete.athleteId}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t("common.language")}
-        <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
-          <option value="en">EN</option>
-          <option value="es">ES</option>
-          <option value="pt">PT</option>
-        </select>
-      </label>
-      <label>
-        {t("common.theme")}
-        <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeChoice)}>
-          <option value="system">{t("common.system")}</option>
-          <option value="light">{t("common.light")}</option>
-          <option value="dark">{t("common.dark")}</option>
-        </select>
-      </label>
-      {TRANSLATION_STATUS[locale] === "draft" ? <span>{t("common.draft")}</span> : null}
-      <p>{t("common.column")}</p>
-    </div>
-  );
 }

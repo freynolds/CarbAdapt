@@ -1,3 +1,11 @@
+import {
+  fuelingPlan,
+  type CarbSplit,
+  type EngineSport,
+  type FluidPlan,
+  type FuelContainer,
+  type FuelProduct,
+} from "@carbadapt/engine";
 import type { Clock } from "./clock.js";
 import {
   ENGINE_VERSION,
@@ -107,9 +115,32 @@ export function addFueling(
   const hours = input.durationMin / 60;
   const totalCarbsG = Math.round(input.targetGPerH * hours);
   const totalFluidMl = Math.round(input.sweatLPerH * hours * 1000);
-  const servings = Math.max(1, Math.ceil(totalCarbsG / input.carbsPerServing));
-  const carryCarbsG = servings * input.carbsPerServing;
-  const totalSodiumMg = servings * input.sodiumPerServing;
+  const workout = bag.workouts.find((row) => row.id === input.workoutId);
+  const userId = typeof workout?.userId === "string" ? workout.userId : "";
+  const user = bag.users.find((row) => row.id === userId);
+  const stageId = workout?.stageId;
+  const mode =
+    stageId != null
+      ? "FUEL_MY_WORKOUTS"
+      : user?.mode === "GUT_TRAINING"
+        ? "GUT_TRAINING"
+        : "FUEL_MY_WORKOUTS";
+  const sport = (typeof workout?.sport === "string" ? workout.sport : "CYCLING") as EngineSport;
+  const { products, containers } = athleteGear(bag, userId);
+  const preference = carryPreference(user);
+  const planned = fuelingPlan({
+    durationMin: input.durationMin,
+    sport,
+    mode,
+    currentStepGh: mode === "GUT_TRAINING" ? input.targetGPerH : null,
+    chosenGPerH: mode === "FUEL_MY_WORKOUTS" ? input.targetGPerH : null,
+    sweatRateLPerH: input.sweatLPerH,
+    products,
+    containers,
+    carbSplit: preference.carbSplit,
+    fluidPlan: preference.fluidPlan,
+  });
+  const totalSodiumMg = planned.totalSodiumMg;
   const every = 20;
   const slots = Math.max(1, Math.floor(input.durationMin / every));
   const base = Math.floor(totalCarbsG / slots);
@@ -136,22 +167,98 @@ export function addFueling(
     isCurrent: true,
     weather: FIXTURE_WEATHER,
     schedule,
-    carryList: {
-      note: "Whole servings round the carry list up to the next serving. Fluid replaces sweat 1:1 for this fixture only; that is not an ACSM during-exercise prescription.",
-      items: [
-        {
-          containerId: input.containerId ?? null,
-          containerName: input.containerName ?? null,
-          productId: input.productId,
-          name: input.productName,
-          servings,
-          carbsPerServing: input.carbsPerServing,
-          carryCarbsG,
-          sodiumMg: totalSodiumMg,
-        },
-      ],
-    },
+    carryList: carryFields(planned),
   });
+}
+
+const CONTENT_ORDER = { WATER: 0, ISOTONIC: 1, GEL_CONCENTRATE: 2 } as const;
+
+/** Favorites come first so the engine packs the athlete's chosen product of each type. */
+function athleteGear(bag: SeedData, userId: string): { products: FuelProduct[]; containers: FuelContainer[] } {
+  const products: FuelProduct[] = bag.products
+    .filter((row) => row.userId === userId && row.deletedAt == null)
+    .sort((left, right) => Number(right.favorite === true) - Number(left.favorite === true))
+    .flatMap((row) => {
+      const type = row.type;
+      if (type !== "DRINK_MIX" && type !== "GEL" && type !== "SOLID") return [];
+      return [
+        {
+          id: String(row.id),
+          type,
+          name: String(row.name),
+          carbsG: Number(row.carbsG),
+          sodiumMg: row.sodiumMg == null ? null : Number(row.sodiumMg),
+          scoopG: row.scoopG == null ? null : Number(row.scoopG),
+          preparesMl: row.preparesMl == null ? null : Number(row.preparesMl),
+        },
+      ];
+    });
+  const containers: FuelContainer[] = bag.containers.flatMap((row) => {
+    if (row.userId !== userId) return [];
+    const usual = row.usualContent;
+    if (usual !== "WATER" && usual !== "ISOTONIC" && usual !== "GEL_CONCENTRATE") return [];
+    return [
+      {
+        id: String(row.id),
+        name: String(row.name),
+        capacityMl: Number(row.capacityMl),
+        usualContent: usual,
+      },
+    ];
+  });
+  containers.sort((left, right) => CONTENT_ORDER[left.usualContent] - CONTENT_ORDER[right.usualContent]);
+  return { products, containers };
+}
+
+/** Race strategy is fuel mode. With no chosen rate, carbs use the low end of the duration band. */
+export function raceStrategyCarry(
+  bag: SeedData,
+  userId: string,
+  input: { durationMin: number; sport: EngineSport; sweatLPerH: number | null; aidStationCount?: number },
+) {
+  const { products, containers } = athleteGear(bag, userId);
+  const user = bag.users.find((row) => row.id === userId);
+  const preference = carryPreference(user);
+  const planned = fuelingPlan({
+    durationMin: input.durationMin,
+    sport: input.sport,
+    mode: "FUEL_MY_WORKOUTS",
+    currentStepGh: null,
+    chosenGPerH: null,
+    sweatRateLPerH: input.sweatLPerH,
+    products,
+    containers,
+    carbSplit: preference.carbSplit,
+    fluidPlan: preference.fluidPlan,
+    aidStationCount: input.aidStationCount ?? 0,
+  });
+  return carryFields(planned);
+}
+
+function carryPreference(user: Record<string, unknown> | undefined): { carbSplit: CarbSplit; fluidPlan: FluidPlan } {
+  const carbSplit = user?.carbSplit;
+  const fluidPlan = user?.fluidPlan;
+  return {
+    carbSplit:
+      carbSplit === "MOSTLY_WATER" || carbSplit === "MORE_MIX" || carbSplit === "BOTTLES_THEN_GELS"
+        ? carbSplit
+        : "BOTTLES_THEN_GELS",
+    fluidPlan: fluidPlan === "REFILL" ? "REFILL" : "MORE_BOTTLES",
+  };
+}
+
+function carryFields(planned: ReturnType<typeof fuelingPlan>) {
+  return {
+    items: planned.items,
+    carbStatus: planned.carbStatus,
+    fluidStatus: planned.fluidStatus,
+    sodiumStatus: planned.sodiumStatus,
+    scheduleStatus: planned.scheduleStatus,
+    targetBandGPerH: planned.band,
+    drinkMixGPerMl: planned.drinkMixGPerMl,
+    carbBasis: planned.carbBasis,
+    carbsRoundedUp: planned.carbsRoundedUp,
+  };
 }
 
 export function loadingMeals(totalCarbsG: number, guidance: string[]) {
@@ -251,35 +358,37 @@ export function addRecovery(
       remainderFrom: "broth or salty food",
     },
   };
-  if (input.windowMin && input.intakeEveryMin) {
-    const offsets: number[] = [];
-    for (let minute = 0; minute < input.windowMin; minute += input.intakeEveryMin)
-      offsets.push(minute);
-    const intakeCarbs = input.intakeCarbsG ?? input.carbsTargetG;
-    const base = Math.floor(intakeCarbs / offsets.length);
-    const extra = intakeCarbs - base * offsets.length;
-    const proteinTotal = input.proteinTargetG ?? 0;
-    const proteinBase = input.sensitive ? Math.floor(proteinTotal / offsets.length) : 0;
-    const proteinExtra = input.sensitive
-      ? proteinTotal - proteinBase * offsets.length
-      : proteinTotal;
-    meals.intakes = offsets.map((offsetMin, index) => ({
-      offsetMin,
-      carbsG: base + (index === 0 ? extra : 0),
-      proteinG: input.sensitive
-        ? proteinBase + (index === 0 ? proteinExtra : 0)
-        : index === 0
-          ? proteinExtra
-          : 0,
-      form: input.liquidsAndGelsOnly ? "liquid or gel" : "liquid, gel, or low-fat low-fiber food",
-    }));
+  if (input.gapCase === "UNDER_4H") {
+    meals.occasions = [
+      {
+        key: "middle",
+        offsetMin: Math.round(input.gapMin / 2),
+        carbsG: input.carbsTargetG,
+        proteinG: input.proteinTargetG,
+        form: input.liquidsAndGelsOnly ? "drink" : "snack",
+      },
+    ];
+  } else if (input.gapCase === "H4_TO_12H") {
+    const occasions: Record<string, unknown>[] = [
+      {
+        key: "first",
+        offsetMin: null,
+        carbsG: input.intakeCarbsG ?? null,
+        proteinG: input.proteinTargetG,
+        form: "meal",
+      },
+    ];
     if (input.preStartMealCarbsG) {
-      meals.preStartMeal = {
+      occasions.push({
+        key: "pre_start",
+        offsetMin: null,
         carbsG: input.preStartMealCarbsG,
-        timing: "2–3 h before the next start",
-        exampleFoods: EXAMPLE_FOODS_PLACEHOLDER,
-      };
+        proteinG: null,
+        form: "meal",
+      });
     }
+    meals.occasions = occasions;
+    meals.mealSplit = "not_set";
   } else {
     meals.meals = splitMeals(input.carbsTargetG).map((meal) => ({
       name: meal.label,

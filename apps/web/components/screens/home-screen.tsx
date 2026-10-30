@@ -1,6 +1,6 @@
 "use client";
 
-import type { Todo } from "@carbadapt/contracts";
+import { SWEAT_PROMPT_DAYS, type Todo } from "@carbadapt/contracts";
 import type { MessageId } from "@carbadapt/i18n";
 import Link from "next/link";
 import { useApp, useGet } from "@/components/app-state";
@@ -93,10 +93,16 @@ export function HomeScreen() {
       if (race.rehearsal) raceByRehearsal.set(race.rehearsal.id, race.id);
     }
   }
+  const sweatHorizon = addDays(from, SWEAT_PROMPT_DAYS);
   const upcoming =
     workouts.status === "ready"
       ? workouts.data.workouts
-          .filter((row) => row.id !== hero?.id && row.status === "PLANNED")
+          .filter(
+            (row) =>
+              row.id !== hero?.id &&
+              row.status === "PLANNED" &&
+              (row.kind !== "SWEAT_TEST" || (row.plannedDate != null && row.plannedDate <= sweatHorizon)),
+          )
           .slice(0, 2)
       : [];
   const steps = plan?.steps ?? [];

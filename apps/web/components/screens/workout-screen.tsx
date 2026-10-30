@@ -101,6 +101,7 @@ export function WorkoutScreen({ id }: { id: string }) {
   const log = feedback.status === "ready" ? feedback.data.log : null;
   const plan = row.fuelingPlan;
   const blocks = blocksOf(row.structure);
+  const showBlocks = hasBlockBreakdown(blocks, row.durationMin);
   const schedule = scheduleOf(plan?.schedule);
   const colorById = new Map(
     containers.status === "ready"
@@ -168,7 +169,7 @@ export function WorkoutScreen({ id }: { id: string }) {
           <p className="preview">{t("common.preview")}</p>
         </div>
       ) : null}
-      {plan || blocks.length > 0 ? (
+      {plan || showBlocks ? (
         <>
           <div className="marks">
             {INTAKE_KEY.map((kind) => (
@@ -186,7 +187,7 @@ export function WorkoutScreen({ id }: { id: string }) {
               </span>
             ))}
           </div>
-          {blocks.length > 0 ? (
+          {showBlocks ? (
             <BlockStrip blocks={blocks} schedule={schedule} durationMin={row.durationMin ?? 0} />
           ) : null}
           <p className="mu">{t("wk.cue")}</p>
@@ -248,7 +249,7 @@ export function WorkoutScreen({ id }: { id: string }) {
           <StageRecovery stageId={row.stageId} races={races.status === "ready" ? races.data.races : []} />
         </>
       ) : null}
-      {blocks.length > 0 ? (
+      {showBlocks ? (
         <>
           <p className="ey">{t("wk.blocks")}</p>
           <table className="table">
@@ -302,6 +303,14 @@ function IntakeShape({ kind, x, y }: { kind: ScheduleMark["kind"]; x: number; y:
     );
   if (kind === "solid") return <rect x={x - 4} y={y - 4} width="8" height="8" fill="#F4F1EA" />;
   return <polygon points={`${x},${y - 6} ${x + 5},${y + 4} ${x - 5},${y + 4}`} fill="#C6F135" />;
+}
+
+/** One block that lasts the whole workout is the session itself, not a breakdown. */
+function hasBlockBreakdown(blocks: BlockRow[], durationMin: number | null): boolean {
+  if (blocks.length === 0) return false;
+  const only = blocks.length === 1 ? blocks[0] : undefined;
+  if (only && durationMin != null && only.durationMin === durationMin) return false;
+  return true;
 }
 
 /** Equal-height zone strip. Bar height in the design encodes sample watts the fixtures do not store. */
@@ -694,7 +703,8 @@ function QuestionnaireForm({
   return (
     <Screen
       kicker={sweat && current === "post" ? t("q.postSweat") : t("q.kicker")}
-      back={`/workouts/${id}`}
+      back={step === 0 ? `/workouts/${id}` : undefined}
+      onBack={step > 0 ? () => setStep((value) => value - 1) : undefined}
     >
       <Preview />
       <StepSegments total={steps.length} current={step} />
@@ -851,16 +861,23 @@ function QuestionnaireForm({
         </>
       ) : null}
       {saveError ? <ErrorText code={saveError} /> : null}
-      <button
-        type="button"
-        className="bt"
-        onClick={() => {
-          if (last) void finish();
-          else setStep((value) => value + 1);
-        }}
-      >
-        {last ? t("q.finish") : t("common.next")}
-      </button>
+      <div className="row">
+        {step > 0 ? (
+          <button type="button" className="gh" onClick={() => setStep((value) => value - 1)}>
+            {t("common.back")}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="bt"
+          onClick={() => {
+            if (last) void finish();
+            else setStep((value) => value + 1);
+          }}
+        >
+          {last ? t("q.finish") : t("common.next")}
+        </button>
+      </div>
     </Screen>
   );
 }

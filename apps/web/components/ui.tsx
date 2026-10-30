@@ -17,6 +17,7 @@ export function Screen({
   kicker,
   tabs = false,
   back,
+  onBack,
   action,
   lead,
   children,
@@ -26,6 +27,8 @@ export function Screen({
   kicker?: string;
   tabs?: boolean;
   back?: string;
+  /** Steps back inside a screen. Used instead of the `back` link. */
+  onBack?: () => void;
   action?: ReactNode;
   lead?: ReactNode;
   children?: ReactNode;
@@ -35,9 +38,17 @@ export function Screen({
   return (
     <div className={className ? `screen ${className}` : "screen"}>
       <div className="screen-body">
-        {back || action ? (
+        {back || onBack || action ? (
           <div className="nav">
-            {back ? <Link href={back}>‹ {t("common.back")}</Link> : <span />}
+            {onBack ? (
+              <button type="button" onClick={onBack}>
+                ‹ {t("common.back")}
+              </button>
+            ) : back ? (
+              <Link href={back}>‹ {t("common.back")}</Link>
+            ) : (
+              <span />
+            )}
             {action}
           </div>
         ) : null}

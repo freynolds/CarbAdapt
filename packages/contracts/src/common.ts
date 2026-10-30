@@ -28,6 +28,9 @@ export const containerContentSchema = z.enum(["WATER", "ISOTONIC", "GEL_CONCENTR
 export const productTypeSchema = z.enum(["DRINK_MIX", "GEL", "SOLID"]);
 export const productSourceSchema = z.enum(["SCAN", "MANUAL"]);
 export const fodmapSchema = z.enum(["LOW", "HIGH"]);
+/** A planned sweat test is called due only this many days ahead. */
+export const SWEAT_PROMPT_DAYS = 7;
+
 export const sweatTestStatusSchema = z.enum([
   "SCHEDULED",
   "IN_PROGRESS",

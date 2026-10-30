@@ -1,6 +1,6 @@
 "use client";
 
-import type { Workout } from "@carbadapt/contracts";
+import { SWEAT_PROMPT_DAYS, type Workout } from "@carbadapt/contracts";
 import { HttpErrorCode } from "@carbadapt/contracts";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -114,8 +114,11 @@ export function CalendarScreen() {
         });
       }
     }
-    return list.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
-  }, [workouts, races, sweat, t, locale, zone]);
+    const horizon = addDays(today, SWEAT_PROMPT_DAYS);
+    return list
+      .filter((row) => row.kind !== "sweat" || row.date <= horizon)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
+  }, [workouts, races, sweat, t, locale, zone, today]);
   const scroller = useRef<HTMLDivElement>(null);
   const anchor =
     rows.find((row) => row.date === today)?.key ?? rows.find((row) => row.date > today)?.key ?? null;
